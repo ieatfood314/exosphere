@@ -39,6 +39,10 @@ def same_origin(request: Request) -> bool:
     return origin is None or urlsplit(origin).netloc == request.headers.get("host")
 
 
+def own_only(request: Request) -> bool:
+    return request.query_params.get("only") == "posts"
+
+
 async def index(request: Request) -> Response:
     return FileResponse(STATIC / "index.html")
 
@@ -48,25 +52,31 @@ async def state(request: Request) -> Response:
     account = await app.source.account()
     status = app.poller.state if account["state"] == "ok" else account["state"]
     return JSONResponse(
-        {"status": status, "last_ok": app.poller.last_ok, "creators": app.store.creators(), "seen": app.store.seen()}
+        {
+            "status": status,
+            "last_ok": app.poller.last_ok,
+            "creators": app.store.creators(own_only(request)),
+            "seen": app.store.seen(),
+        }
     )
 
 
 async def feed(request: Request) -> Response:
     """Default: what's new since the last read-through, all of it, and nothing else.
-    With `creator` or `before`: one page of history."""
+    With `creator` or `before`: one page of history. `only=posts` drops replies and reposts."""
     store = request.app.state.store
+    own = own_only(request)
     creator, before = request.query_params.get("creator"), request.query_params.get("before")
     if creator is None and before is None:
-        posts = store.new_posts()
-        return JSONResponse({"posts": posts, "more": bool(store.history(1))})
+        posts = store.new_posts(own_only=own)
+        return JSONResponse({"posts": posts, "more": bool(store.history(1, own_only=own))})
     cursor = None
     if before:
         at, _, id = before.partition(":")
         if not at.isdigit() or not id.isdigit():
             return error("Bad cursor", 400)
         cursor = (int(at), id)
-    posts = store.history(PAGE + 1, creator, cursor)
+    posts = store.history(PAGE + 1, creator, cursor, own)
     return JSONResponse({"posts": posts[:PAGE], "more": len(posts) > PAGE})
 
 

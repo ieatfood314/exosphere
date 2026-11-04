@@ -35,6 +35,15 @@ FIRST_VISIT_WINDOW = 24 * 3600
 # so only its last day counts, which keeps a new follow from flooding the feed.
 NEW_WHERE = "p.fetched_at > :seen AND (p.backfill = 0 OR p.at > :recent)"
 
+# What someone put out themselves: posts, quotes and their own threads, which X stores as
+# replies to themselves. Not replies to others, and not reposts.
+OWN_POSTS = """(json_extract(p.data, '$.kind') = 'post'
+    OR lower(json_extract(p.data, '$.reply_to.handle')) = lower(c.handle))"""
+
+
+def own_clause(own_only: bool) -> str:
+    return OWN_POSTS if own_only else "1"
+
 
 class Store:
     def __init__(self, path: Path | str):
@@ -76,10 +85,10 @@ class Store:
                 (int(time.time()), error, id),
             )
 
-    def creators(self) -> list[dict]:
+    def creators(self, own_only: bool = False) -> list[dict]:
         rows = self.db.execute(
             f"""SELECT c.*, count(p.id) AS posts, max(p.at) AS latest,
-                       coalesce(sum({NEW_WHERE}), 0) AS new
+                       coalesce(sum({NEW_WHERE} AND {own_clause(own_only)}), 0) AS new
                 FROM creators c LEFT JOIN posts p ON p.creator_id = c.id
                 GROUP BY c.id ORDER BY lower(c.name)""",
             self._new_args(),
@@ -133,12 +142,18 @@ class Store:
             for r in rows
         ]
 
-    def new_posts(self, limit: int = 500) -> list[dict]:
-        return self._rows(NEW_WHERE, self._new_args(), limit)
+    def new_posts(self, limit: int = 500, own_only: bool = False) -> list[dict]:
+        return self._rows(f"{NEW_WHERE} AND {own_clause(own_only)}", self._new_args(), limit)
 
-    def history(self, limit: int, creator: str | None = None, before: tuple[int, str] | None = None) -> list[dict]:
+    def history(
+        self,
+        limit: int,
+        creator: str | None = None,
+        before: tuple[int, str] | None = None,
+        own_only: bool = False,
+    ) -> list[dict]:
         """Everything, newest first. `before` is the (at, id) of the last post shown."""
-        where, args = ["1"], {}
+        where, args = [own_clause(own_only)], {}
         if creator:
             where.append("p.creator_id = :creator")
             args["creator"] = creator

@@ -136,6 +136,31 @@ def test_history_pages_without_skipping_ties(store):
     assert not {p["id"] for p in first} & {p["id"] for p in rest}
 
 
+def own_posts_mix():
+    return [
+        make(1),
+        make(2, kind="reply", reply_to={"handle": "bob"}),
+        make(3, kind="repost", repost={}),
+        make(4, kind="reply", reply_to={"handle": "A"}),  # a thread, and handles ignore case
+        make(5, quote={}),
+        make(6, kind="reply", reply_to={"handle": None}),
+    ]
+
+
+def test_own_posts_keep_threads_and_quotes_only(store):
+    store.save_posts("1", own_posts_mix(), backfill=False)
+    assert {p["id"] for p in store.new_posts(own_only=True)} == {"1", "4", "5"}
+    assert {p["id"] for p in store.history(10, own_only=True)} == {"1", "4", "5"}
+    assert len(store.new_posts()) == 6
+
+
+def test_own_posts_filter_narrows_new_counts_only(store):
+    store.save_posts("1", own_posts_mix(), backfill=False)
+    ann = store.creators(own_only=True)[0]
+    assert (ann["new"], ann["posts"]) == (3, 6)
+    assert store.creators()[0]["new"] == 6
+
+
 def test_removing_creator_removes_posts(store):
     store.save_posts("1", [make(1)], backfill=False)
     store.remove_creator("1")
@@ -261,6 +286,26 @@ def test_paging_has_a_cursor_and_rejects_junk(client):
     rest = client.get(f"/api/feed?creator=1&before={last['at']}:{last['id']}").json()
     assert len(rest["posts"]) == 9 and not rest["more"]
     assert client.get("/api/feed?before=x'--").status_code == 400
+
+
+def test_feed_can_show_only_own_posts(client):
+    client.store.save_posts("1", own_posts_mix(), backfill=False)
+    assert len(client.get("/api/feed?only=posts").json()["posts"]) == 3
+    assert len(client.get("/api/feed?creator=1&only=posts").json()["posts"]) == 3
+    assert len(client.get("/api/feed").json()["posts"]) == 6
+    assert client.get("/api/state?only=posts").json()["creators"][0]["new"] == 3
+
+
+def test_only_posts_pages_and_says_when_nothing_is_left(client):
+    replies = [make(i, 1000 + i, kind="reply", reply_to={"handle": "bob"}) for i in range(1, 40)]
+    client.store.save_posts("1", replies, backfill=True)
+    assert client.get("/api/feed").json()["more"]
+    assert not client.get("/api/feed?only=posts").json()["more"]
+    client.store.save_posts("1", [make(i, 2000 + i) for i in range(50, 90)], backfill=True)
+    page = client.get("/api/feed?creator=1&only=posts").json()
+    last = page["posts"][-1]
+    rest = client.get(f"/api/feed?creator=1&only=posts&before={last['at']}:{last['id']}").json()
+    assert len(page["posts"]) == 30 and page["more"] and len(rest["posts"]) == 10 and not rest["more"]
 
 
 def test_add_single_match(client):

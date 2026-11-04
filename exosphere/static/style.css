@@ -103,6 +103,8 @@ button { cursor: pointer; }
 /* people */
 .sorts { display: flex; gap: 18px; margin-bottom: 26px; color: var(--dim); }
 .sorts [aria-pressed="true"] { color: var(--ink); }
+.sorts.filter { margin-bottom: 0; }
+.sorts.filter button { padding: 12px 0; }
 .person { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--rule); line-height: 1.25; }
 .person small { display: block; color: var(--dim); font: 400 10.5px/1.7 Martian, monospace; }
 .person .sat { pointer-events: none; }

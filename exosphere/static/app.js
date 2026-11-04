@@ -8,6 +8,7 @@ let view = { name: "new" };
 let shown = [];           // posts on the page, oldest last
 let more = false;
 let peopleSort = localStorage.getItem("sort") || "recent";
+let onlyPosts = localStorage.getItem("only") === "posts";
 let seenSent = 0;
 let edgeWatch = null;
 
@@ -29,6 +30,7 @@ async function api(path, options) {
   if (!response.ok) throw new Error(body.error || "Failed");
   return body;
 }
+const filtered = (path) => (onlyPosts ? `${path}${path.includes("?") ? "&" : "?"}only=posts` : path);
 const post = (path, body) => api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 /* time */
@@ -150,6 +152,17 @@ function reset() {
   document.querySelector(".toplink").toggleAttribute("aria-current", view.name === "people");
 }
 
+function filterTabs() {
+  const tabs = [[false, "All"], [true, "Posts"]].map(([value, label]) =>
+    el("button", { "aria-pressed": String(value === onlyPosts), on: { click: async () => {
+      onlyPosts = value;
+      localStorage.setItem("only", value ? "posts" : "all");
+      await refreshState();
+      route();
+    } } }, label));
+  return el("div", { class: "sorts filter" }, tabs);
+}
+
 function showEdge(text, ...extra) {
   edge.replaceChildren(...[el("div", { class: "line" }), text && el("p", {}, text), ...extra].filter(Boolean));
 }
@@ -166,7 +179,7 @@ async function loadEarlier(event) {
   if (view.id) params.set("creator", view.id);
   params.set("before", last ? `${last.at}:${last.id}` : `${2 ** 40}:9`);
   try {
-    const page = await api(`/api/feed?${params}`);
+    const page = await api(filtered(`/api/feed?${params}`));
     addPosts(page.posts);
     more = page.more;
     finish();
@@ -207,7 +220,7 @@ function watchEdgeForSeen() {
 }
 
 async function showNew() {
-  const page = await api("/api/feed");
+  const page = await api(filtered("/api/feed"));
   reset();
   more = page.more;
   const count = page.posts.length;
@@ -218,6 +231,7 @@ async function showNew() {
   } else {
     hero.replaceChildren(el("span", { class: "count none" }, "Clear sky"), el("span", { class: "sub" }, "Nothing new"));
   }
+  if (state.creators.length) feed.append(filterTabs());
   addPosts(page.posts);
   showEdge(count ? "That's everything." : null, earlierButton());
   watchEdgeForSeen();
@@ -228,12 +242,13 @@ async function showPerson(id) {
   clearTimeout(fetchTimer);
   const person = state.creators.find((creator) => creator.id === id);
   if (!person) { location.hash = "#/"; return; }
-  const page = await api(`/api/feed?creator=${id}`);
+  const page = await api(filtered(`/api/feed?creator=${id}`));
   reset();
   more = page.more;
   const waiting = !person.polled_at;
   const line = person.error ? "Fetch failed" : waiting ? "Fetching" : person.protected ? `@${person.handle} · private` : `@${person.handle}`;
   hero.replaceChildren(el("h1", { class: "title" }, person.name), el("span", { class: "sub" }, line));
+  feed.append(filterTabs());
   addPosts(page.posts);
   finish();
   if (waiting) {
@@ -297,7 +312,7 @@ function showAdd() {
 
 async function refreshState() {
   try {
-    state = await api("/api/state");
+    state = await api(filtered("/api/state"));
   } catch {
     state = { ...state, status: "offline" };
   }
