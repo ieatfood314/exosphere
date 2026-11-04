@@ -151,7 +151,7 @@ function reset() {
 }
 
 function showEdge(text, ...extra) {
-  edge.replaceChildren(el("div", { class: "line" }), text && el("p", {}, text), ...extra);
+  edge.replaceChildren(...[el("div", { class: "line" }), text && el("p", {}, text), ...extra].filter(Boolean));
 }
 
 function earlierButton() {
