@@ -1,0 +1,13 @@
+[Unit]
+Description=exosphere: a quiet feed of chosen X accounts
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/repos/exosphere
+ExecStart=%h/repos/exosphere/.venv/bin/exosphere serve
+Restart=on-failure
+RestartSec=10
+MemoryMax=300M
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="referrer" content="no-referrer">
+  <title>exosphere</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="preload" href="/static/fonts/spectral-latin-300-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <canvas id="stars" aria-hidden="true"></canvas>
+  <canvas id="planet" aria-hidden="true"></canvas>
+  <header class="top">
+    <a class="mark" href="#/">exosphere</a>
+    <span id="status" role="status"></span>
+    <a class="toplink" id="people-link" href="#/people">People</a>
+  </header>
+  <nav id="orbit" aria-label="People"></nav>
+  <section id="hero"></section>
+  <main id="feed"></main>
+  <footer id="edge"></footer>
+  <div id="altitude" aria-hidden="true"><i id="altitude-dot"></i><span id="altitude-km"></span></div>
+  <script src="/static/app.js" type="module"></script>
+</body>
+</html>

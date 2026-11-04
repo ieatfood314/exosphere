@@ -1,0 +1,131 @@
+@font-face { font-family: Spectral; font-weight: 300; font-display: swap; src: url(fonts/spectral-latin-300-normal.woff2) format("woff2"); }
+@font-face { font-family: Spectral; font-weight: 300; font-style: italic; font-display: swap; src: url(fonts/spectral-latin-300-italic.woff2) format("woff2"); }
+@font-face { font-family: Spectral; font-weight: 400; font-display: swap; src: url(fonts/spectral-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: Martian; font-weight: 400; font-display: swap; src: url(fonts/martian-mono-latin-400-normal.woff2) format("woff2"); }
+
+:root {
+  --void: #000;
+  --ink: #e9eef5;
+  --dim: #7f8ea3;
+  --faint: #3d4757;
+  --rule: #151b25;
+  --rayleigh: #5fb2ff;   /* scattered daylight at the limb */
+  --airglow: #7dffb4;    /* atomic oxygen, 557.7 nm: the one live color */
+  --dawn: #ffc48a;
+  --limb-y: calc(env(safe-area-inset-top) + 92px);
+  --col: min(620px, calc(100vw - 48px));
+}
+
+* { box-sizing: border-box; }
+html { background: var(--void); -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; overflow-x: hidden; position: relative;
+  color: var(--ink); background: var(--void);
+  font: 300 20px/1.48 Spectral, Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+button { cursor: pointer; }
+:focus-visible { outline: 1px solid var(--airglow); outline-offset: 3px; }
+
+.mono, .mark, .toplink, #status, .who, .when, .label, #altitude, .sorts, .sub, .plain {
+  font: 400 10.5px/1.5 Martian, ui-monospace, monospace;
+  letter-spacing: .08em;
+}
+
+/* the sky */
+#stars { position: fixed; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+#planet { position: absolute; top: 0; left: 0; width: 100%; height: 560px; pointer-events: none; }
+
+/* top bar, on the night of the planet */
+.top {
+  position: relative; z-index: 2; display: flex; align-items: baseline; gap: 16px;
+  width: var(--col); height: calc(env(safe-area-inset-top) + 44px);
+  margin: 0 auto; padding-top: calc(env(safe-area-inset-top) + 20px);
+}
+.mark { color: var(--ink); letter-spacing: .34em; }
+#status { color: var(--dawn); }
+.toplink { margin-left: auto; color: var(--dim); }
+.toplink[aria-current] { color: var(--ink); }
+
+/* satellites along the arc */
+#orbit { /* tall enough that satellites can climb the arc without being clipped */
+  position: absolute; z-index: 1; left: 0; right: 0; top: calc(var(--limb-y) - 130px);
+  display: flex; justify-content: safe center; gap: 14px; overflow-x: auto; scrollbar-width: none;
+  padding: 164px 24px 14px; pointer-events: none;
+  scroll-snap-type: x proximity;
+}
+#orbit > * { pointer-events: auto; }
+#orbit::-webkit-scrollbar { display: none; }
+.sat {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; position: relative;
+  display: grid; place-items: center; scroll-snap-align: center;
+  background: #0b0f16; color: var(--dim); box-shadow: 0 0 0 1px #202a38;
+  font: 300 19px/1 Spectral, serif; will-change: transform;
+}
+.sat img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(.8); }
+.sat.new { box-shadow: 0 0 0 1px var(--airglow), 0 0 12px #7dffb440; }
+.sat[aria-current] { box-shadow: 0 0 0 1.5px var(--ink); }
+.sat[aria-current] img, .sat:hover img { filter: none; }
+.sat.add { background: none; box-shadow: inset 0 0 0 1px var(--faint); color: var(--ink); font-size: 24px; }
+
+/* the one big thing */
+#hero { position: relative; width: var(--col); margin: calc(var(--limb-y) + 112px - 44px) auto 0; }
+.count { display: block; text-align: left; font-weight: 300; font-size: clamp(88px, 26vw, 148px); line-height: .95; letter-spacing: -.035em; }
+.count.none { color: var(--dim); font-size: clamp(56px, 16vw, 92px); font-style: italic; letter-spacing: -.02em; line-height: 1.05; }
+.sub { display: block; margin-top: 12px; color: var(--dim); }
+.title { font-size: clamp(42px, 11vw, 68px); line-height: 1.04; letter-spacing: -.02em; margin: 0; font-weight: 300; overflow-wrap: anywhere; }
+
+.ask { display: block; width: 100%; font-size: clamp(30px, 8vw, 44px); font-weight: 300; padding: 6px 0 10px; border-bottom: 1px solid var(--faint); border-radius: 0; outline: 0; }
+.ask:focus { border-color: var(--airglow); }
+.ask::placeholder { color: var(--faint); font-style: italic; }
+.note { display: block; margin-top: 12px; color: var(--dawn); }
+.match { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: left; line-height: 1.2; }
+.match small { display: block; color: var(--dim); font: 400 10.5px/1.6 Martian, monospace; }
+
+/* posts */
+#feed { position: relative; width: var(--col); margin: 56px auto 0; }
+.day { display: flex; align-items: center; gap: 14px; color: var(--faint); margin: 72px 0 40px; }
+.day::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+.post { margin: 0 0 60px; }
+.head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.who { color: var(--ink); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.when { color: var(--dim); margin-left: auto; flex: none; }
+.label { color: var(--dim); margin-bottom: 6px; }
+.text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.text a { color: var(--rayleigh); }
+.parent, .quote { margin: 0 0 12px; padding-left: 14px; border-left: 1px solid var(--faint); color: var(--dim); font-size: 17px; }
+.quote { margin: 14px 0 0; }
+.parent .who, .quote .who { color: var(--dim); }
+.media { display: grid; gap: 3px; margin-top: 14px; }
+.media.two { grid-template-columns: 1fr 1fr; }
+.media img, .media video { display: block; width: 100%; max-height: 70vh; object-fit: cover; background: #06090f; }
+
+/* people */
+.sorts { display: flex; gap: 18px; margin-bottom: 26px; color: var(--dim); }
+.sorts [aria-pressed="true"] { color: var(--ink); }
+.person { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--rule); line-height: 1.25; }
+.person small { display: block; color: var(--dim); font: 400 10.5px/1.7 Martian, monospace; }
+.person .sat { pointer-events: none; }
+.person b { font-weight: 300; }
+.person .fresh { margin-left: auto; color: var(--airglow); font: 400 12px/1 Martian, monospace; }
+
+/* the end of the atmosphere */
+#edge { position: relative; width: var(--col); margin: 0 auto; padding: 14vh 0 26vh; text-align: center; }
+#edge p { margin: 0 0 26px; font-style: italic; color: var(--ink); font-size: 26px; }
+.plain { color: var(--dim); padding: 12px 18px; }
+.plain:hover { color: var(--ink); }
+.plain.warn { color: var(--dawn); }
+.line { width: 1px; height: 12vh; margin: 0 auto 26px; background: linear-gradient(transparent, var(--faint)); }
+
+/* altitude */
+#altitude[hidden] { display: none; }
+#altitude { position: fixed; right: 0; top: 0; bottom: 0; width: 1px; background: var(--rule); pointer-events: none; color: var(--dim); }
+#altitude-dot { position: absolute; right: -1px; top: 0; width: 3px; height: 14px; background: var(--airglow); }
+#altitude-km { position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 3px 6px; background: #000c; white-space: nowrap; }
+
+@media (min-width: 800px) {
+  body { font-size: 21px; }
+  :root { --limb-y: 118px; }
+}
