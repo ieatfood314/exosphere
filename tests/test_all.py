@@ -10,7 +10,7 @@ from exosphere.app import create_app
 from exosphere.db import Store
 from exosphere.normalize import post
 from exosphere.poller import Poller
-from exosphere.source import Blocked, Profile, RateLimited, as_handle
+from exosphere.source import Blocked, Profile, RateLimited, Source, as_handle
 from twscrape.models import parse_tweets
 
 FIXTURE = Path(__file__).parent / "fixtures/raw_user_tweets_and_replies.json"
@@ -91,7 +91,8 @@ def test_video_picks_a_playable_mp4(tweets):
 @pytest.mark.parametrize(
     "query,handle",
     [
-        ("jack", "jack"),
+        ("jack", None),
+        ("tibo", None),
         ("@jack", "jack"),
         ("https://x.com/jack/status/1", "jack"),
         ("twitter.com/jack?s=20", "jack"),
@@ -314,6 +315,50 @@ def test_add_single_match(client):
     assert client.store.creator("2")
 
 
+def test_one_name_match_still_asks(client):
+    client.source.found = [person()]
+    assert client.post("/api/creators", json={"query": "bob"}).json()["matches"][0]["handle"] == "bob"
+    assert client.store.creator("2") is None
+
+
+def test_handle_that_misses_never_follows_a_search_result(client):
+    client.source.found = [person("2", "bobby")]
+    assert "matches" in client.post("/api/creators", json={"query": "@bob"}).json()
+    assert client.store.creator("2") is None
+
+
+def test_handle_case_does_not_matter(client):
+    client.source.found = [person("2", "Bob")]
+    assert client.post("/api/creators", json={"query": "@bob"}).json()["added"]["id"] == "2"
+
+
+class FakeUser:
+    id, username, displayname, profileImageUrl, protected, rawDescription = 2, "bob", "Bob", "", False, "hi"
+
+
+class FakeApi:
+    def __init__(self):
+        self.logins, self.searches = [], []
+
+    async def user_by_login(self, handle):
+        self.logins.append(handle)
+        return FakeUser()
+
+    async def search_user(self, query, limit):
+        self.searches.append(query)
+        yield FakeUser()
+
+
+@pytest.mark.parametrize(
+    "query,logins,searches", [("tibo", [], ["tibo"]), ("Tibo Sottiaux", [], ["Tibo Sottiaux"]), ("@tibo", ["tibo"], [])]
+)
+async def test_bare_word_is_a_name_search(query, logins, searches):
+    source = Source.__new__(Source)
+    source.api = FakeApi()
+    assert (await source.find(query))[0].bio == "hi"
+    assert (source.api.logins, source.api.searches) == (logins, searches)
+
+
 def test_add_many_matches_asks_then_adds(client):
     client.source.found = [person("2", "bob"), person("3", "bobby")]
     assert len(client.post("/api/creators", json={"query": "Bob"}).json()["matches"]) == 2
@@ -333,6 +378,15 @@ def test_add_rejects_empty_and_bad_bodies(client):
     assert client.post("/api/creators", json={"query": "  "}).status_code == 400
     assert client.post("/api/creators", json=["x"]).status_code == 400
     assert client.post("/api/creators", content="nope").status_code == 400
+
+
+def test_unfollow_removes_person_and_their_posts_everywhere(client):
+    client.store.save_posts("1", [make(1)], backfill=False)
+    assert client.delete("/api/creators/1").status_code == 204
+    assert client.get("/api/state").json()["creators"] == []
+    assert client.get("/api/feed").json()["posts"] == []
+    assert client.get("/api/feed?creator=1").json()["posts"] == []
+    assert client.delete("/api/creators/1").status_code == 204
 
 
 def test_cross_site_writes_refused(client):

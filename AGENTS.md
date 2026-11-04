@@ -12,6 +12,10 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
 ## Rules that aren't obvious
 - `exosphere/config.py` must load before twscrape: it turns off twscrape's PostHog telemetry.
 - Timelines also contain other people's posts (quotes, reply parents). Filter by author.
+- A bare word in the add box is a name, never a handle: @tibo isn't the Tibo you meant. Only
+  `@handle` or a profile URL follows straight away; everything else asks you to pick.
+- Names you can hold are buttons, not links, and their avatars have `pointer-events: none`.
+  Firefox for Android shows its own menu on any link or image, so keep `href` off them.
 - "New" is by `fetched_at`, not post time, because polling lags. A creator's first fetch is
   `backfill` and only its last 24 hours count as new.
 - Everything from X reaches the DOM as text nodes. Never use `innerHTML` on post data.

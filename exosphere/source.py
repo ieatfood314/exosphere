@@ -27,19 +27,29 @@ class Profile:
     name: str
     avatar: str
     protected: bool
+    bio: str = ""
 
 
 def as_handle(query: str) -> str | None:
-    """A handle if the query is one (`jack`, `@jack`, a profile URL), otherwise None."""
+    """The handle if the query names one outright (`@jack`, a profile URL), otherwise None.
+    A bare word is a name: `tibo` has to find people called Tibo, not just @tibo."""
     query = query.strip()
     if match := PROFILE_URL.search(query):
         return match.group(1)
-    query = query.removeprefix("@")
-    return query if HANDLE.match(query) else None
+    if query.startswith("@") and HANDLE.match(query[1:]):
+        return query[1:]
+    return None
 
 
 def profile(user) -> Profile:
-    return Profile(str(user.id), user.username, user.displayname, avatar(user.profileImageUrl), bool(user.protected))
+    return Profile(
+        str(user.id),
+        user.username,
+        user.displayname,
+        avatar(user.profileImageUrl),
+        bool(user.protected),
+        (user.rawDescription or "")[:160],
+    )
 
 
 class Source:
@@ -60,8 +70,9 @@ class Source:
         return {"state": "ok" if live else "blocked", "username": (live or accounts)[0]["username"]}
 
     async def find(self, query: str) -> list[Profile]:
-        """Best matches for a name or handle. An exact handle wins outright. Searching by
-        name needs a phone-verified account, so it can fail where a handle works."""
+        """Best matches for a name. `@jack` or a profile URL goes straight to that account.
+        Searching by name may come to need a phone-verified account, so it can fail where
+        a handle works."""
         try:
             if handle := as_handle(query):
                 if user := await self.api.user_by_login(handle):

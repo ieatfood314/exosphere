@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const hero = $("hero"), feed = $("feed"), edge = $("edge"), orbit = $("orbit");
+const menu = $("menu"), HOLD_MS = 450;
 const BASE_KM = 700, TOP_KM = 10000; // where the exosphere starts and thins into space
 const STATUS = { none: "No X account", blocked: "X blocked us", waiting: "Waiting on X", offline: "Offline" };
 
@@ -11,6 +12,7 @@ let peopleSort = localStorage.getItem("sort") || "recent";
 let onlyPosts = localStorage.getItem("only") === "posts";
 let seenSent = 0;
 let edgeWatch = null;
+let holdTimer, holdFrom, held = false;
 
 function el(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
@@ -86,7 +88,7 @@ function postNode(item) {
   const body = item.repost || item;
   return el("article", { class: "post" },
     el("div", { class: "head" },
-      el("a", { class: "who", href: `#/p/${item.creator.id}` }, item.creator.name),
+      el("button", { class: "who", "data-person": item.creator.id }, item.creator.name),
       el("a", { class: "when", href: item.url, target: "_blank", rel: "noopener noreferrer", title: new Date(item.at * 1000).toLocaleString() }, ago(item.at))),
     item.repost && el("div", { class: "label" }, `Reposted ${item.repost.author.name}`),
     item.reply_to && !item.reply_to.post && el("div", { class: "label" }, `Reply to @${item.reply_to.handle}`),
@@ -121,7 +123,7 @@ function drawOrbit() {
   orbit.replaceChildren(
     ...people.map((person) => {
       const node = avatar(person);
-      const link = el("a", { href: `#/p/${person.id}`, class: `sat${person.new ? " new" : ""}`, title: person.name, "aria-label": person.name, "aria-current": view.id === person.id ? "true" : null });
+      const link = el("button", { class: `sat${person.new ? " new" : ""}`, "data-person": person.id, title: person.name, "aria-label": person.name, "aria-current": view.id === person.id ? "true" : null });
       link.append(...node.childNodes);
       return link;
     }),
@@ -189,22 +191,56 @@ async function loadEarlier(event) {
 }
 
 function finish() {
-  const unfollow = view.name === "person" ? unfollowButton() : null;
-  showEdge(more ? null : "That's everything.", earlierButton(), unfollow);
+  showEdge(more ? null : "That's everything.", earlierButton());
 }
 
-function unfollowButton() {
+async function unfollow(id) {
+  await api(`/api/creators/${id}`, { method: "DELETE" });
+  state.creators = state.creators.filter((creator) => creator.id !== id);
+  await refreshState();
+  if (view.id === id) location.hash = "#/";
+  else await route();
+}
+
+function unfollowButton(id) {
   const button = el("button", { class: "plain", on: { click: async () => {
-    if (button.dataset.armed) {
-      await api(`/api/creators/${view.id}`, { method: "DELETE" });
-      location.hash = "#/";
-    } else {
+    if (!button.dataset.armed) {
+      clearTimeout(fetchTimer); // redrawing the page would disarm the button
       button.dataset.armed = "1";
       button.classList.add("warn");
       button.textContent = "Tap again to unfollow";
+      return;
+    }
+    button.disabled = true;
+    try {
+      await unfollow(id);
+    } catch {
+      button.disabled = false;
+      button.textContent = "Failed. Tap to retry";
     }
   } } }, "Unfollow");
-  return el("div", {}, button);
+  return button;
+}
+
+/* Press and hold a name, or right-click it. Names are buttons and their avatars ignore the
+   pointer because Firefox for Android opens its own menu on any link or image it's held on. */
+function openMenu(id, x, y) {
+  const person = state.creators.find((creator) => creator.id === id);
+  if (!person || menu.open) return;
+  const button = el("button", { class: "plain", on: { click: async () => {
+    button.disabled = true;
+    try {
+      await unfollow(id);
+      menu.close();
+    } catch {
+      button.disabled = false;
+      button.textContent = "Failed. Tap to retry";
+    }
+  } } }, `Unfollow ${person.name}`);
+  menu.replaceChildren(button);
+  menu.showModal();
+  menu.style.left = `${Math.max(16, Math.min(x, innerWidth - menu.offsetWidth - 16))}px`;
+  menu.style.top = `${Math.max(16, Math.min(y, innerHeight - menu.offsetHeight - 16))}px`;
 }
 
 function watchEdgeForSeen() {
@@ -247,7 +283,7 @@ async function showPerson(id) {
   more = page.more;
   const waiting = !person.polled_at;
   const line = person.error ? "Fetch failed" : waiting ? "Fetching" : person.protected ? `@${person.handle} · private` : `@${person.handle}`;
-  hero.replaceChildren(el("h1", { class: "title" }, person.name), el("span", { class: "sub" }, line));
+  hero.replaceChildren(el("h1", { class: "title", "data-person": id }, person.name), el("span", { class: "sub" }, line), unfollowButton(id));
   feed.append(filterTabs());
   addPosts(page.posts);
   finish();
@@ -270,7 +306,7 @@ function showPeople() {
   };
   const draw = () => {
     const rows = [...state.creators].sort(order[peopleSort]).map((person) =>
-      el("a", { class: "person", href: `#/p/${person.id}` }, avatar(person),
+      el("button", { class: "person", "data-person": person.id }, avatar(person),
         el("span", {}, el("b", {}, person.name), el("small", {}, `@${person.handle}${person.latest ? ` · ${ago(person.latest)}` : ""}`)),
         person.new ? el("span", { class: "fresh" }, String(person.new)) : null));
     const tabs = Object.entries(sorts).map(([key, label]) =>
@@ -285,16 +321,16 @@ function showAdd() {
   const note = el("span", { class: "note", role: "alert" });
   const results = el("div", {});
   const input = el("input", { class: "ask", placeholder: "Name or @handle", autocomplete: "off", autocapitalize: "none", spellcheck: "false", enterkeyhint: "go", "aria-label": "Name or @handle" });
-  const add = async (query, exact) => {
+  const add = async (query) => {
     note.textContent = "Looking";
     results.replaceChildren();
     try {
-      const answer = await post("/api/creators", { query, exact });
+      const answer = await post("/api/creators", { query });
       if (answer.matches) {
         note.textContent = "";
         results.replaceChildren(...answer.matches.map((match) =>
-          el("button", { class: "match", on: { click: () => add(match.handle, true) } }, avatar(match),
-            el("span", {}, match.name, el("small", {}, `@${match.handle}`)))));
+          el("button", { class: "match", on: { click: () => add(`@${match.handle}`) } }, avatar(match),
+            el("span", {}, match.name, el("small", {}, `@${match.handle}`), match.bio && el("small", { class: "bio" }, match.bio)))));
         return;
       }
       await refreshState();
@@ -304,7 +340,7 @@ function showAdd() {
     }
   };
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && input.value.trim()) add(input.value, false);
+    if (event.key === "Enter" && input.value.trim()) add(input.value);
   });
   hero.replaceChildren(input, note, results);
   input.focus();
@@ -448,6 +484,45 @@ addEventListener("resize", () => {
   onScroll();
 });
 addEventListener("hashchange", route);
+document.addEventListener("touchstart", (event) => {
+  clearTimeout(holdTimer);
+  const [{ clientX: x, clientY: y }] = event.touches;
+  holdFrom = { x, y };
+  const who = event.target.closest("[data-person]");
+  if (!who || event.touches.length > 1) return;
+  holdTimer = setTimeout(() => {
+    held = true;
+    openMenu(who.dataset.person, x, y);
+  }, HOLD_MS);
+}, { passive: true });
+document.addEventListener("touchmove", (event) => {
+  const [{ clientX: x, clientY: y }] = event.touches;
+  if (Math.hypot(x - holdFrom.x, y - holdFrom.y) > 10) clearTimeout(holdTimer);
+}, { passive: true });
+document.addEventListener("touchend", (event) => {
+  clearTimeout(holdTimer);
+  if (held) event.preventDefault(); // lifting the finger must not also tap what's under it
+  held = false;
+});
+document.addEventListener("touchcancel", () => {
+  clearTimeout(holdTimer);
+  held = false;
+});
+document.addEventListener("contextmenu", (event) => {
+  const who = event.target.closest("[data-person]");
+  if (menu.open || held) event.preventDefault();
+  else if (who) {
+    event.preventDefault();
+    openMenu(who.dataset.person, event.clientX, event.clientY);
+  }
+});
+document.addEventListener("click", (event) => {
+  const who = event.target.closest("[data-person]");
+  if (who) location.hash = `#/p/${who.dataset.person}`;
+});
+menu.addEventListener("click", (event) => {
+  if (event.target === menu) menu.close();
+});
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState === "visible" && view.name === "new" && scrollY < 120) {
     await refreshState();

@@ -19,7 +19,7 @@ from starlette.staticfiles import StaticFiles
 from . import config
 from .db import Store
 from .poller import Poller
-from .source import Blocked, RateLimited, Source
+from .source import Blocked, RateLimited, Source, as_handle
 
 STATIC = Path(__file__).parent / "static"
 PAGE = 30
@@ -99,10 +99,12 @@ async def add_creator(request: Request) -> Response:
         logging.exception("lookup failed")
         return error("Search failed. Try their @handle", 502)
     if not found:
-        return error("Nobody found", 404)
-    if len(found) > 1 and not body.get("exact"):
+        return error("Nobody found. Try their @handle", 404)
+    # Only an exact @handle follows straight away. Anything else is a guess, so ask.
+    handle = (as_handle(query) or "").lower()
+    person = next((p for p in found if p.handle.lower() == handle), None)
+    if person is None:
         return JSONResponse({"matches": [vars(p) for p in found]})
-    person = found[0]
     app.store.add_creator(person.id, person.handle, person.name, person.avatar, person.protected)
     app.poller.nudge()
     return JSONResponse({"added": vars(person)})

@@ -62,7 +62,7 @@ button { cursor: pointer; }
   background: #0b0f16; color: var(--dim); box-shadow: 0 0 0 1px #202a38;
   font: 400 17px/1 Inter, system-ui, sans-serif; will-change: transform;
 }
-.sat img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(.8); }
+.sat img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(.8); pointer-events: none; }
 .sat.new { box-shadow: 0 0 0 1px var(--airglow), 0 0 12px #7dffb440; }
 .sat[aria-current] { box-shadow: 0 0 0 1.5px var(--ink); }
 .sat[aria-current] img, .sat:hover img { filter: none; }
@@ -80,6 +80,8 @@ button { cursor: pointer; }
 .ask::placeholder { color: var(--faint); }
 .note { display: block; margin-top: 12px; color: var(--dawn); }
 .match { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: left; line-height: 1.2; }
+.match > span:last-child { min-width: 0; }
+.match small.bio { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .match small { display: block; color: var(--dim); font: 400 10.5px/1.6 Martian, monospace; }
 
 /* posts */
@@ -105,7 +107,7 @@ button { cursor: pointer; }
 .sorts [aria-pressed="true"] { color: var(--ink); }
 .sorts.filter { margin-bottom: 0; }
 .sorts.filter button { padding: 12px 0; }
-.person { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--rule); line-height: 1.25; }
+.person { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 13px 0; border-bottom: 1px solid var(--rule); line-height: 1.25; }
 .person small { display: block; color: var(--dim); font: 400 10.5px/1.7 Martian, monospace; }
 .person .sat { pointer-events: none; }
 .person b { font-weight: 500; }
@@ -117,6 +119,13 @@ button { cursor: pointer; }
 .plain { color: var(--dim); padding: 12px 18px; }
 .plain:hover { color: var(--ink); }
 .plain.warn { color: var(--dawn); }
+#hero .plain { margin: 4px 0 0 -18px; }
+
+/* held or right-clicked names */
+[data-person] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+#menu { position: fixed; inset: auto; margin: 0; padding: 0; max-width: calc(100vw - 32px); background: var(--void); color: var(--ink); border: 1px solid var(--faint); }
+#menu::backdrop { background: #0009; }
+#menu .plain { display: block; width: 100%; color: var(--dawn); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .line { width: 1px; height: 12vh; margin: 0 auto 26px; background: linear-gradient(transparent, var(--faint)); }
 
 /* altitude */
