@@ -16,8 +16,9 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
   `backfill` and only its last 24 hours count as new.
 - Everything from X reaches the DOM as text nodes. Never use `innerHTML` on post data.
 - Keep polling slow. One burner, so X's limits and bans are the main risk; the cycle is 30
-  minutes. New X accounts need a phone number for search, so name search can fail while
-  handles work.
+  minutes. New X accounts may need a phone number before name search
+  works, so keep the "Try their @handle" fallback.
+- Logging the burner out in the browser its cookies came from kills them in `accounts.db`.
 - No engagement counts, no infinite scroll. Older posts need a tap on Earlier.
 
 ## Design
