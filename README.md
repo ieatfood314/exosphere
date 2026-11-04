@@ -34,7 +34,7 @@ Environment variables: `EXOSPHERE_DATA`, `EXOSPHERE_HOST`, `EXOSPHERE_PORT`,
 ## Credits
 
 Built on [twscrape](https://github.com/vladkens/twscrape) (MIT), which also supplied the
-recorded response in `tests/fixtures`. Fonts are Spectral and Martian Mono (SIL OFL,
+recorded response in `tests/fixtures`. Fonts are Inter and Martian Mono (SIL OFL,
 licenses in `exosphere/static/fonts`).
 
 Scraping X is against its terms. Use an account you can afford to lose.

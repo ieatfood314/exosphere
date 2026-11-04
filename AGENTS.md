@@ -34,6 +34,8 @@ EXOSPHERE_DATA=$PWD/dev-data EXOSPHERE_PORT=4601 uv run exosphere serve
 ```
 Seeded data comes from a recording, so dev never touches X. With no account in `dev-data`,
 the poller makes no requests.
+Parallel sessions all default to port 4601, and a busy port still answers with someone else's
+code. Check it's free first, or pick another.
 
 ## Deploy
 `deploy/exosphere.service` goes in `~/.config/systemd/user/`. After a code change run
