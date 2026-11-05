@@ -9,6 +9,10 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
 - `exosphere/static/` is the whole front end, served as is.
 - Data and burner cookies: `~/.local/share/exosphere/` (`exosphere.db`, `accounts.db`).
 
+## This repo is public
+Keep real names, hostnames, tailnet names, email addresses and anything about who the burner
+is out of files and commit messages. Notes about one particular install go somewhere private.
+
 ## Rules that aren't obvious
 - `exosphere/config.py` must load before twscrape: it turns off twscrape's PostHog telemetry.
 - Timelines also contain other people's posts (quotes, reply parents). Filter by author.
