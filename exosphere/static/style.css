@@ -44,7 +44,8 @@ button { cursor: pointer; }
 }
 .mark { color: var(--ink); letter-spacing: .34em; }
 #status { color: var(--dawn); }
-.toplink { margin-left: auto; color: var(--dim); }
+.tabs { display: flex; gap: 16px; margin-left: auto; }
+.toplink { color: var(--dim); }
 .toplink[aria-current] { color: var(--ink); }
 
 /* satellites along the arc */

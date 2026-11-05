@@ -4,6 +4,7 @@ const menu = $("menu"), HOLD_MS = 450;
 const BASE_KM = 700, TOP_KM = 10000; // where the exosphere starts and thins into space
 const AWAY_MS = 5 * 60 * 1000;     // a shorter absence is a glance elsewhere, so the page stays put
 const READING_MS = 30 * 60 * 1000; // scrolled down, you may be off reading a link, so wait longer
+const NEWEST = `${2 ** 40}:9`; // a cursor above every post
 const STATUS = { none: "No X account", blocked: "X blocked us", waiting: "Waiting on X", offline: "Offline" };
 
 let state = { creators: [], status: "ok" };
@@ -152,11 +153,11 @@ function reset() {
   edge.replaceChildren();
   shown = [];
   more = false;
-  document.querySelector(".toplink").toggleAttribute("aria-current", view.name === "people");
+  for (const link of document.querySelectorAll(".toplink")) link.toggleAttribute("aria-current", link.dataset.view === view.name);
 }
 
 function filterTabs() {
-  const tabs = [[false, "All"], [true, "Posts"]].map(([value, label]) =>
+  const tabs = [[false, "Everything"], [true, "Posts"]].map(([value, label]) =>
     el("button", { "aria-pressed": String(value === onlyPosts), on: { click: async () => {
       onlyPosts = value;
       localStorage.setItem("only", value ? "posts" : "all");
@@ -180,7 +181,7 @@ async function loadEarlier(event) {
   const last = shown.at(-1);
   const params = new URLSearchParams();
   if (view.id) params.set("creator", view.id);
-  params.set("before", last ? `${last.at}:${last.id}` : `${2 ** 40}:9`);
+  params.set("before", last ? `${last.at}:${last.id}` : NEWEST);
   try {
     const page = await api(filtered(`/api/feed?${params}`));
     addPosts(page.posts);
@@ -267,6 +268,17 @@ async function showNew() {
   addPosts(page.posts);
   showEdge(count ? "That's everything." : null, earlierButton());
   checked = Math.max(checked, ...shown.map((item) => item.fetched_at));
+}
+
+/* Everyone, seen or not. Reading here is not checking: only New moves the read position. */
+async function showAll() {
+  const page = await api(filtered(`/api/feed?before=${NEWEST}`));
+  reset();
+  more = page.more;
+  hero.replaceChildren(el("h1", { class: "title" }, "All"));
+  feed.append(filterTabs());
+  addPosts(page.posts);
+  finish();
 }
 
 let fetchTimer;
@@ -356,12 +368,13 @@ async function route() {
   const path = location.hash.replace(/^#\/?/, "");
   const [section, id] = path.split("/");
   view = section === "p" ? { name: "person", id } : { name: section || "new" };
-  if (!["new", "person", "people", "add"].includes(view.name)) view = { name: "new" };
+  if (!["new", "all", "person", "people", "add"].includes(view.name)) view = { name: "new" };
   drawOrbit();
   scrollTo(0, 0);
   $("altitude").hidden = view.name === "people" || view.name === "add";
   try {
     if (view.name === "person") await showPerson(id);
+    else if (view.name === "all") await showAll();
     else if (view.name === "people") showPeople();
     else if (view.name === "add") showAdd();
     else await showNew();

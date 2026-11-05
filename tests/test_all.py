@@ -296,6 +296,16 @@ def test_paging_has_a_cursor_and_rejects_junk(client):
     assert client.get("/api/feed?before=x'--").status_code == 400
 
 
+def test_history_spans_everyone_and_keeps_seen_posts(client):
+    client.store.add_creator("2", "b", "Bea", "", False)
+    client.store.save_posts("1", [make(1, 1000)], backfill=False)
+    client.store.save_posts("2", [make(2, 2000)], backfill=False)
+    client.store.mark_seen(int(time.time()) + 60)
+    assert client.get("/api/feed").json()["posts"] == []
+    page = client.get(f"/api/feed?before={2**40}:9").json()
+    assert [p["id"] for p in page["posts"]] == ["2", "1"]
+
+
 def test_feed_can_show_only_own_posts(client):
     client.store.save_posts("1", own_posts_mix(), backfill=False)
     assert len(client.get("/api/feed?only=posts").json()["posts"]) == 3

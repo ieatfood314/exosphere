@@ -28,6 +28,9 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
   works, so keep the "Try their @handle" fallback.
 - Logging the burner out in the browser its cookies came from kills them in `accounts.db`.
 - No engagement counts, no infinite scroll. Older posts need a tap on Earlier.
+- New is only what's unchecked. All and person pages are history, seen or not, and reading
+  them doesn't record a check. The All/Posts filter's first button is "Everything" so it
+  doesn't read as the All page.
 - The Posts filter is `OWN_POSTS` in `db.py`: posts, quotes and self-replies (threads), no
   replies to others and no reposts. It reads the stored JSON, so old rows need no migration.
   `only=posts` must go on `/api/state` as well as `/api/feed`, or the orbit glows for posts
