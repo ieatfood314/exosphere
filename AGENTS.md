@@ -17,7 +17,11 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
 - Names you can hold are buttons, not links, and their avatars have `pointer-events: none`.
   Firefox for Android shows its own menu on any link or image, so keep `href` off them.
 - "New" is by `fetched_at`, not post time, because polling lags. A creator's first fetch is
-  `backfill` and only its last 24 hours count as new.
+  `backfill`, and only what they posted since the last check counts as new, at most 24 hours.
+- A check is recorded when the page is hidden or closed after showing the feed, not on load,
+  so the feed holds still while it's read. Unread posts move to Earlier at that point. Back
+  within 5 minutes the page stays as it was, or 30 if scrolled down mid-read; after that it
+  reloads to what's new.
 - Everything from X reaches the DOM as text nodes. Never use `innerHTML` on post data.
 - Keep polling slow. One burner, so X's limits and bans are the main risk; the cycle is 30
   minutes. New X accounts may need a phone number before name search

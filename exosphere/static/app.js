@@ -2,6 +2,8 @@ const $ = (id) => document.getElementById(id);
 const hero = $("hero"), feed = $("feed"), edge = $("edge"), orbit = $("orbit");
 const menu = $("menu"), HOLD_MS = 450;
 const BASE_KM = 700, TOP_KM = 10000; // where the exosphere starts and thins into space
+const AWAY_MS = 5 * 60 * 1000;     // a shorter absence is a glance elsewhere, so the page stays put
+const READING_MS = 30 * 60 * 1000; // scrolled down, you may be off reading a link, so wait longer
 const STATUS = { none: "No X account", blocked: "X blocked us", waiting: "Waiting on X", offline: "Offline" };
 
 let state = { creators: [], status: "ok" };
@@ -10,9 +12,10 @@ let shown = [];           // posts on the page, oldest last
 let more = false;
 let peopleSort = localStorage.getItem("sort") || "recent";
 let onlyPosts = localStorage.getItem("only") === "posts";
+let checked = 0;          // newest fetched_at the feed has shown; sent when you leave
 let seenSent = 0;
-let edgeWatch = null;
 let holdTimer, holdFrom, held = false;
+let hiddenAt = Date.now();
 
 function el(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
@@ -33,7 +36,7 @@ async function api(path, options) {
   return body;
 }
 const filtered = (path) => (onlyPosts ? `${path}${path.includes("?") ? "&" : "?"}only=posts` : path);
-const post = (path, body) => api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const post = (path, body, options) => api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), ...options });
 
 /* time */
 const ago = (at) => {
@@ -149,8 +152,6 @@ function reset() {
   edge.replaceChildren();
   shown = [];
   more = false;
-  edgeWatch?.disconnect();
-  edgeWatch = null;
   document.querySelector(".toplink").toggleAttribute("aria-current", view.name === "people");
 }
 
@@ -243,16 +244,11 @@ function openMenu(id, x, y) {
   menu.style.top = `${Math.max(16, Math.min(y, innerHeight - menu.offsetHeight - 16))}px`;
 }
 
-function watchEdgeForSeen() {
-  const newest = Math.max(0, ...shown.map((item) => item.fetched_at));
-  if (!newest) return;
-  edgeWatch = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting) && newest > seenSent) {
-      seenSent = newest;
-      post("/api/seen", { until: newest }).catch(() => { seenSent = 0; });
-    }
-  });
-  edgeWatch.observe(edge);
+/* Leaving is what counts as having checked, so the feed holds still while you read it. */
+function sendChecked() {
+  if (checked <= seenSent) return;
+  seenSent = checked;
+  post("/api/seen", { until: checked }, { keepalive: true }).catch(() => { seenSent = 0; }); // the page may be closing
 }
 
 async function showNew() {
@@ -270,7 +266,7 @@ async function showNew() {
   if (state.creators.length) feed.append(filterTabs());
   addPosts(page.posts);
   showEdge(count ? "That's everything." : null, earlierButton());
-  watchEdgeForSeen();
+  checked = Math.max(checked, ...shown.map((item) => item.fetched_at));
 }
 
 let fetchTimer;
@@ -524,9 +520,13 @@ menu.addEventListener("click", (event) => {
   if (event.target === menu) menu.close();
 });
 document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState === "visible" && view.name === "new" && scrollY < 120) {
+  if (document.visibilityState === "hidden") {
+    hiddenAt = Date.now();
+    sendChecked();
+  } else {
+    const stale = Date.now() - hiddenAt > (scrollY < 120 ? AWAY_MS : READING_MS);
     await refreshState();
-    route();
+    if (view.name === "new" && stale) route();
   }
 });
 

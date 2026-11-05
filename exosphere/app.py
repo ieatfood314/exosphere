@@ -62,7 +62,7 @@ async def state(request: Request) -> Response:
 
 
 async def feed(request: Request) -> Response:
-    """Default: what's new since the last read-through, all of it, and nothing else.
+    """Default: what's new since you last checked, all of it, and nothing else.
     With `creator` or `before`: one page of history. `only=posts` drops replies and reposts."""
     store = request.app.state.store
     own = own_only(request)

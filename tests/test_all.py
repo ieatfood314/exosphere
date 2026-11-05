@@ -114,10 +114,17 @@ def test_first_fetch_is_history_except_the_last_day(store):
 
 
 def test_late_fetched_old_post_still_counts_as_new(store):
-    """Polling lags, so a post written before the read-through can arrive after it."""
+    """Polling lags, so a post written before a check can arrive after it."""
     store.mark_seen(int(time.time()) - 5)
     store.save_posts("1", [make(1, int(time.time()) - 3600)], backfill=False)
     assert [p["id"] for p in store.new_posts()] == ["1"]
+
+
+def test_new_follow_only_counts_posts_since_the_last_check(store):
+    now = int(time.time())
+    store.mark_seen(now - 3600)
+    store.save_posts("1", [make(1, now - 7200), make(2, now - 60)], backfill=True)
+    assert [p["id"] for p in store.new_posts()] == ["2"]
 
 
 def test_seen_clears_new_and_never_moves_back(store):

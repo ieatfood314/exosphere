@@ -3,7 +3,7 @@
 The people you choose on X, and nothing else. No algorithm, no counts, and the feed ends.
 
 Add people by name or handle. A slow background poller reads their posts through a
-burner account into SQLite, and the site shows what's new since you last reached the end.
+burner account into SQLite, and the site shows what's new since you last checked.
 
 ## Run
 

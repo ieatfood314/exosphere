@@ -31,8 +31,9 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 FIRST_VISIT_WINDOW = 24 * 3600
 
-# New means fetched since the last read-through. A creator's first fetch is history,
-# so only its last day counts, which keeps a new follow from flooding the feed.
+# New means fetched since you last checked. A creator's first fetch is history, so only
+# what they posted since then counts, and never more than a day of it, which keeps a new
+# follow from flooding the feed.
 NEW_WHERE = "p.fetched_at > :seen AND (p.backfill = 0 OR p.at > :recent)"
 
 # What someone put out themselves: posts, quotes and their own threads, which X stores as
@@ -177,4 +178,5 @@ class Store:
             )
 
     def _new_args(self) -> dict:
-        return {"seen": self.seen(), "recent": int(time.time()) - FIRST_VISIT_WINDOW}
+        seen = self.seen()
+        return {"seen": seen, "recent": max(seen, int(time.time()) - FIRST_VISIT_WINDOW)}
