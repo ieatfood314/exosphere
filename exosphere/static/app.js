@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const hero = $("hero"), feed = $("feed"), edge = $("edge"), orbit = $("orbit");
+const tabs = [...orbit.children];
 const menu = $("menu"), HOLD_MS = 450;
 const BASE_KM = 700, TOP_KM = 10000; // where the exosphere starts and thins into space
 const AWAY_MS = 5 * 60 * 1000;     // a shorter absence is a glance elsewhere, so the page stays put
@@ -124,7 +125,9 @@ function avatar(person) {
 
 function drawOrbit() {
   const people = [...state.creators].sort((a, b) => b.new - a.new || (b.latest || 0) - (a.latest || 0));
-  orbit.replaceChildren(
+  for (const tab of tabs) tab.toggleAttribute("aria-current", tab.dataset.view === view.name);
+  for (const sat of orbit.querySelectorAll(".sat")) sat.remove(); // the tabs stay, so they keep focus
+  orbit.append(
     ...people.map((person) => {
       const node = avatar(person);
       const link = el("button", { class: `sat${person.new ? " new" : ""}`, "data-person": person.id, title: person.name, "aria-label": person.name, "aria-current": view.id === person.id ? "true" : null });
@@ -141,7 +144,7 @@ const planetRadius = () => Math.max(640, innerWidth * 0.78);
 function bendOrbit() {
   const radius = planetRadius(), middle = innerWidth / 2;
   for (const sat of orbit.children) {
-    const dx = sat.offsetLeft - orbit.scrollLeft + 22 - middle;
+    const dx = sat.offsetLeft - orbit.scrollLeft + sat.offsetWidth / 2 - middle;
     const lift = radius - Math.sqrt(Math.max(radius * radius - dx * dx, 0));
     sat.style.transform = `translateY(${-Math.min(lift, 150).toFixed(1)}px)`;
   }
@@ -153,7 +156,6 @@ function reset() {
   edge.replaceChildren();
   shown = [];
   more = false;
-  for (const link of document.querySelectorAll(".toplink")) link.toggleAttribute("aria-current", link.dataset.view === view.name);
 }
 
 function filterTabs() {

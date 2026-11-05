@@ -27,7 +27,7 @@ button, input { font: inherit; color: inherit; background: none; border: 0; padd
 button { cursor: pointer; }
 :focus-visible { outline: 1px solid var(--airglow); outline-offset: 3px; }
 
-.mono, .mark, .toplink, #status, .who, .when, .label, #altitude, .sorts, .sub, .plain {
+.mono, .mark, #status, .who, .when, .label, #altitude, .sorts, .sub, .plain {
   font: 400 10.5px/1.5 Martian, ui-monospace, monospace;
   letter-spacing: .08em;
 }
@@ -44,9 +44,6 @@ button { cursor: pointer; }
 }
 .mark { color: var(--ink); letter-spacing: .34em; }
 #status { color: var(--dawn); }
-.tabs { display: flex; gap: 16px; margin-left: auto; }
-.toplink { color: var(--dim); }
-.toplink[aria-current] { color: var(--ink); }
 
 /* satellites along the arc */
 #orbit { /* tall enough that satellites can climb the arc without being clipped */
@@ -68,6 +65,9 @@ button { cursor: pointer; }
 .sat[aria-current] { box-shadow: 0 0 0 1.5px var(--ink); }
 .sat[aria-current] img, .sat:hover img { filter: none; }
 .sat.add { background: none; box-shadow: inset 0 0 0 1px var(--faint); color: var(--ink); font-size: 24px; }
+
+.tab { flex: none; height: 44px; font-size: 19px; line-height: 44px; color: var(--dim); scroll-snap-align: center; will-change: transform; }
+.tab[aria-current] { color: var(--ink); }
 
 /* the one big thing */
 #hero { position: relative; width: var(--col); margin: calc(var(--limb-y) + 112px - 44px) auto 0; }
