@@ -16,6 +16,7 @@ let peopleSort = localStorage.getItem("sort") || "recent";
 let onlyPosts = localStorage.getItem("only") === "posts";
 let checked = 0;          // newest fetched_at the feed has shown; sent when you leave
 let seenSent = 0;
+let saved = 0;            // when the last answer was saved, if it came from the app's offline copy
 let holdTimer, holdFrom, held = false;
 let hiddenAt = Date.now();
 
@@ -33,6 +34,7 @@ function el(tag, props = {}, ...kids) {
 async function api(path, options) {
   const response = await fetch(path, options);
   if (response.status === 204) return null;
+  if (!options) saved = Number(response.headers.get("x-exosphere-saved")) || 0;
   const body = await response.json();
   if (!response.ok) throw new Error(body.error || "Failed");
   return body;
@@ -185,12 +187,28 @@ async function loadEarlier(event) {
   if (view.id) params.set("creator", view.id);
   params.set("before", last ? `${last.at}:${last.id}` : NEWEST);
   try {
-    const page = await api(filtered(`/api/feed?${params}`));
+    const page = await api(filtered(`/api/feed?${params}`)).catch((failure) => {
+      if (view.name === "new" && last) return savedEarlier(last);
+      throw failure;
+    });
     addPosts(page.posts);
     more = page.more;
     finish();
   } catch {
     button.disabled = false;
+  }
+}
+
+/* Offline, only the app's saved pages exist, and New can end anywhere inside one of them.
+   So walk them from the top to the first post older than the one on screen. */
+async function savedEarlier(last) {
+  const older = (item) => item.at < last.at || (item.at === last.at && BigInt(item.id) < BigInt(last.id));
+  for (let cursor = NEWEST; ;) {
+    const page = await api(filtered(`/api/feed?before=${cursor}`));
+    const posts = page.posts.filter(older);
+    if (posts.length || !page.more) return { ...page, posts };
+    const end = page.posts.at(-1);
+    cursor = `${end.at}:${end.id}`;
   }
 }
 
@@ -247,15 +265,35 @@ function openMenu(id, x, y) {
   menu.style.top = `${Math.max(16, Math.min(y, innerHeight - menu.offsetHeight - 16))}px`;
 }
 
-/* Leaving is what counts as having checked, so the feed holds still while you read it. */
+/* Leaving is what counts as having checked, so the feed holds still while you read it.
+   It's written down first: the page may be closing, or offline, and the server only ever
+   moves forward, so sending it again later is harmless. */
+const unsentCheck = () => Number(localStorage.getItem("seen")) || 0;
+
+async function sendSeen(options) {
+  const until = unsentCheck();
+  if (!until) return;
+  try {
+    await post("/api/seen", { until }, options);
+    if (unsentCheck() === until) localStorage.removeItem("seen");
+  } catch {
+    // It stays written down until a later try gets through.
+  }
+}
+
 function sendChecked() {
   if (checked <= seenSent) return;
   seenSent = checked;
-  post("/api/seen", { until: checked }, { keepalive: true }).catch(() => { seenSent = 0; }); // the page may be closing
+  localStorage.setItem("seen", Math.max(checked, unsentCheck()));
+  sendSeen({ keepalive: true });
 }
+
+/* Quick, because an unreachable server would otherwise hold up everything behind this. */
+const catchUp = () => sendSeen({ signal: AbortSignal.timeout(2000) });
 
 async function showNew() {
   const page = await api(filtered("/api/feed"));
+  if (saved) page.posts = page.posts.filter((item) => item.fetched_at > unsentCheck()); // the copy can't know you read these
   reset();
   more = page.more;
   const count = page.posts.length;
@@ -335,7 +373,9 @@ function showAdd() {
     note.textContent = "Looking";
     results.replaceChildren();
     try {
-      const answer = await post("/api/creators", { query });
+      const answer = await post("/api/creators", { query }).catch((failure) => {
+        throw failure instanceof TypeError ? new Error(STATUS.offline) : failure; // fetch itself failed
+      });
       if (answer.matches) {
         note.textContent = "";
         results.replaceChildren(...answer.matches.map((match) =>
@@ -356,13 +396,19 @@ function showAdd() {
   input.focus();
 }
 
+function showStatus() {
+  $("status").textContent = saved ? `${STATUS.offline} · saved ${ago(saved)}` : STATUS[state.status] || "";
+}
+
 async function refreshState() {
   try {
     state = await api(filtered("/api/state"));
+    if (saved && unsentCheck()) for (const creator of state.creators) creator.new = 0;
   } catch {
+    saved = 0;
     state = { ...state, status: "offline" };
   }
-  $("status").textContent = STATUS[state.status] || "";
+  showStatus();
   drawOrbit();
 }
 
@@ -380,6 +426,7 @@ async function route() {
     else if (view.name === "people") showPeople();
     else if (view.name === "add") showAdd();
     else await showNew();
+    showStatus();
   } catch {
     $("status").textContent = STATUS.offline;
   }
@@ -540,12 +587,19 @@ document.addEventListener("visibilitychange", async () => {
     sendChecked();
   } else {
     const stale = Date.now() - hiddenAt > (scrollY < 120 ? AWAY_MS : READING_MS);
+    await catchUp();
     await refreshState();
     if (view.name === "new" && stale) route();
   }
 });
 
+addEventListener("online", async () => {
+  await catchUp();
+  await refreshState();
+});
+
 drawStars();
 drawPlanet();
+await catchUp();
 await refreshState();
 route();

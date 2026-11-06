@@ -39,7 +39,8 @@ import java.util.Locale;
  * A shell around the exosphere site. The page is always the live one from your server, so
  * site changes never need a new APK. This adds what a browser would have given it: a screen
  * for the server's address, links that open outside, fullscreen video, Back and pull to
- * refresh. The address is asked for, not built in, because the APK is public.
+ * refresh. The address is asked for, not built in, because the APK is public. Offline reading
+ * is Offline, and keeping its copy fresh on Wi-Fi is SyncJob.
  */
 public class MainActivity extends Activity {
     private static final String CONNECT = "file:///android_asset/connect.html";
@@ -57,7 +58,8 @@ public class MainActivity extends Activity {
     private final Runnable giveUp = () -> showConnect(UNREACHABLE);
     private SharedPreferences prefs;
     private WebView web;
-    private String server;
+    private Offline offline;
+    private volatile String server; // read on WebView threads too
     private boolean onConnect, freshHistory, probing;
     private float pullFrom = -1;
     private final Chrome chrome = new Chrome();
@@ -71,6 +73,7 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         prefs = getSharedPreferences("exosphere", MODE_PRIVATE);
         server = prefs.getString("server", null);
+        offline = new Offline(new Shelf(SyncJob.shelfDir(this)));
 
         // The bars keep their own black strips. Drawn under the status bar, posts would run
         // through the clock, because the site has no sticky header to cover them.
@@ -96,8 +99,12 @@ public class MainActivity extends Activity {
         web.setWebChromeClient(chrome);
         web.setOnTouchListener(this::watchPull);
 
-        if (server == null) showConnect(null);
-        else openFeed();
+        if (server == null) {
+            showConnect(null);
+        } else {
+            SyncJob.keepHourly(this);
+            openFeed();
+        }
     }
 
     private void openFeed() {
@@ -148,6 +155,8 @@ public class MainActivity extends Activity {
             }
             server = candidate;
             prefs.edit().putString("server", server).apply();
+            SyncJob.keepHourly(this);
+            SyncJob.soon(this);
             openFeed();
         });
     }
@@ -204,6 +213,11 @@ public class MainActivity extends Activity {
     }
 
     private class Client extends WebViewClient {
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            return offline.answer(request, server);
+        }
+
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();
@@ -292,6 +306,13 @@ public class MainActivity extends Activity {
     protected void onPause() {
         web.onPause(); // the site records a check when the page goes hidden
         super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        // Catches what's new before you walk out of Wi-Fi range.
+        if (server != null) SyncJob.soon(this);
+        super.onStop();
     }
 
     @Override

@@ -12,12 +12,13 @@ from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, Response
+from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from . import config
 from .db import Store
+from .offline import offline_urls
 from .poller import Poller
 from .source import Blocked, RateLimited, Source, as_handle
 
@@ -124,6 +125,11 @@ async def seen(request: Request) -> Response:
     return Response(status_code=204)
 
 
+async def offline(request: Request) -> Response:
+    """One URL per line, so the app can read it without a JSON parser in its sync."""
+    return PlainTextResponse("\n".join(offline_urls(request.app.state.store, STATIC, PAGE)))
+
+
 class Guard:
     """Refuses cross-site writes and sets security headers on every response."""
 
@@ -169,6 +175,7 @@ def create_app(store: Store | None = None, source=None, poll: bool = True) -> St
             Route("/api/creators", add_creator, methods=["POST"]),
             Route("/api/creators/{id}", remove_creator, methods=["DELETE"]),
             Route("/api/seen", seen, methods=["POST"]),
+            Route("/api/offline", offline),
             Mount("/static", StaticFiles(directory=STATIC)),
         ],
         lifespan=lifespan,

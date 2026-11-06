@@ -6,6 +6,7 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
 ## Layout
 - `exosphere/source.py` is the only module that talks to X. `normalize.py` turns tweets into
   the site's JSON, `poller.py` is the background loop, `db.py` is storage, `app.py` the API.
+- `exosphere/offline.py` lists what the Android app saves for reading offline.
 - `exosphere/static/` is the whole front end, served as is.
 - `android/` is a WebView shell around the live site: Java, no Gradle, no dependencies.
 - Data and burner cookies: `~/.local/share/exosphere/` (`exosphere.db`, `accounts.db`).
@@ -24,7 +25,8 @@ is out of files and commit messages. Notes about one particular install go somew
 - "New" is by `fetched_at`, not post time, because polling lags. A creator's first fetch is
   `backfill`, and only what they posted since the last check counts as new, at most 24 hours.
 - A check is recorded when the page is hidden or closed after showing the feed, not on load,
-  so the feed holds still while it's read. Unread posts move to Earlier at that point. Back
+  so the feed holds still while it's read. It's written to `localStorage` first and cleared
+  once sent, so a check made offline reaches the server later. Unread posts move to Earlier at that point. Back
   within 5 minutes the page stays as it was, or 30 if scrolled down mid-read; after that it
   reloads to what's new.
 - Everything from X reaches the DOM as text nodes. Never use `innerHTML` on post data.
@@ -63,7 +65,7 @@ The app loads the site from your server, so site changes need no new APK. Only c
 ```
 ANDROID_HOME=<sdk> JAVA_HOME=<jdk17> android/build.sh
 ```
-To publish, bump `android/version` (`<name> <code>`, higher code every time), push, then run
+`android/test.sh` tests the offline code. To publish, bump `android/version` (`<name> <code>`, higher code every time), push, then run
 `android/release.sh`. Obtainium reads GitHub releases, and the tag has to match the version name.
 - The server address is asked for on first launch, never built in, because the APK is public.
 - The release key is `~/.config/exosphere/android.jks`. Lose it and installed apps can't update.
@@ -73,6 +75,15 @@ To publish, bump `android/version` (`<name> <code>`, higher code every time), pu
   the clock, as the site has no sticky header.
 - `build.sh` copies `style.css` and the fonts into the APK for the connect screen, so classes
   it uses (`.top`, `.mark`, `.ask`, `.note`, `#hero`) need to keep working there.
+- Offline: `Offline.java` puts the site's pages network first, then the saved copy, marked
+  with an `x-exosphere-saved` header so the site can say so. `SyncJob` fills the copy hourly on
+  unmetered networks, and soon after you leave the app, from the list at `/api/offline`.
+- A saved page is found by its URL, so `offline.py` has to ask for exactly what `app.js` asks
+  for. Change a request in one and change the other. Query order and `%3A` don't matter.
+- Offline, New can end mid-page, so Earlier there walks the saved pages (`savedEarlier`).
+- Only the site's GETs have copies. Follows and unfollows need the server.
+- `Shelf` and `Syncer` are plain Java so `android/test.sh` can run them off the phone. Keep
+  `android.*` out of them.
 - HTTPS only, except `localhost` and `10.0.2.2` for a dev server. The emulator reaches
   `http://10.0.2.2:4601`. Test against that, as the live site would move your real read position.
 

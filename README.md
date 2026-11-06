@@ -40,6 +40,9 @@ The app is the same site in its own window, so it needs your server running. Add
 or take the APK from [Releases](https://github.com/ieatfood314/exosphere/releases). On first
 launch it asks for your server's address. It has to be HTTPS, which `tailscale serve` gives you.
 
+It works offline too. On Wi-Fi it saves your latest posts, photos and videos up to 25 MB each,
+within 512 MB. Whatever you read offline counts as read once you're back.
+
 ## Settings
 
 Environment variables: `EXOSPHERE_DATA`, `EXOSPHERE_HOST`, `EXOSPHERE_PORT`,

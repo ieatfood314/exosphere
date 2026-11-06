@@ -417,3 +417,64 @@ def test_cross_site_writes_refused(client):
 def test_state_shows_account_trouble(client):
     client.source.state = "blocked"
     assert client.get("/api/state").json()["status"] == "blocked"
+
+
+def offline_list(client):
+    response = client.get("/api/offline")
+    assert response.status_code == 200 and response.headers["content-type"].startswith("text/plain")
+    return response.text.split("\n")
+
+
+def test_offline_lists_only_pages_that_answer(client, store):
+    store.add_creator("2", "bob", "Bob", "https://pbs.twimg.com/bob.jpg", False)
+    store.save_posts("2", [make(i, at=1000 + i) for i in range(1, 70)], False)
+    urls = offline_list(client)
+    pages = [url for url in urls if url.startswith("/")]
+    assert len(pages) == len(set(pages))
+    assert {"/", "/static/app.js", "/static/style.css", "/api/state", "/api/state?only=posts", "/api/feed"} <= set(pages)
+    assert all(client.get(page).status_code == 200 for page in pages)
+    assert not any(page.endswith(".txt") for page in pages)
+
+
+def test_offline_pages_match_what_the_site_asks_for(client, store):
+    store.add_creator("2", "bob", "Bob", "", False)
+    store.save_posts("2", [make(i, at=1000 + i) for i in range(1, 70)], False)
+    pages = offline_list(client)
+    # The All page's first request, then the cursor Earlier sends from the end of it.
+    first = "/api/feed?before=1099511627776:9"
+    assert first in pages and f"{first}&only=posts" in pages
+    last = client.get(first).json()["posts"][-1]
+    assert f"/api/feed?before={last['at']}:{last['id']}" in pages
+    # A person's page, then their Earlier.
+    assert "/api/feed?creator=2" in pages and "/api/feed?creator=2&only=posts" in pages
+    last = client.get("/api/feed?creator=2").json()["posts"][-1]
+    assert f"/api/feed?creator=2&before={last['at']}:{last['id']}" in pages
+
+
+def test_offline_keeps_media_from_inside_posts_and_puts_pages_first(client, store):
+    video = {"type": "video", "url": "https://video.twimg.com/v.mp4", "poster": "https://pbs.twimg.com/poster.jpg"}
+    inner = {"author": {"avatar": "https://pbs.twimg.com/quoted.jpg"}, "media": [{"type": "photo", "url": "https://pbs.twimg.com/q.jpg"}]}
+    parent = {"author": {"avatar": ""}, "media": [{"type": "photo", "url": "https://pbs.twimg.com/parent.jpg"}]}
+    store.add_creator("2", "bob", "Bob", "https://pbs.twimg.com/bob.jpg", False)
+    store.save_posts("2", [make(1, media=[video], quote=inner, reply_to={"handle": "x", "post": parent})], False)
+    urls = offline_list(client)
+    assert {"https://video.twimg.com/v.mp4", "https://pbs.twimg.com/poster.jpg", "https://pbs.twimg.com/q.jpg",
+            "https://pbs.twimg.com/quoted.jpg", "https://pbs.twimg.com/parent.jpg", "https://pbs.twimg.com/bob.jpg"} <= set(urls)
+    kinds = [url.startswith("/") for url in urls]
+    assert kinds == sorted(kinds, reverse=True)
+    assert "" not in urls
+
+
+def test_offline_stops_at_its_page_limit(client, store):
+    store.add_creator("2", "bob", "Bob", "", False)
+    store.save_posts("2", [make(i, at=1000 + i) for i in range(1, 500)], False)
+    pages = [url for url in offline_list(client) if "creator=2" in url and "only" not in url]
+    assert len(pages) == 3
+
+
+def test_offline_never_touches_x(client, store):
+    store.add_creator("2", "bob", "Bob", "", False)
+    client.source.fail = AssertionError("asked X")
+    client.source.account = None  # anything reaching for the source now blows up
+    assert offline_list(client)
+    assert client.source.calls == []
