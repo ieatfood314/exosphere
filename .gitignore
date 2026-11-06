@@ -6,3 +6,4 @@ dev-data/
 *.db
 *.db-shm
 *.db-wal
+android/build/

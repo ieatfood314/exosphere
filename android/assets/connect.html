@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>exosphere</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ask { font-size: clamp(24px, 6.4vw, 36px); }
+    #go { display: block; margin-top: 28px; color: var(--airglow); font-size: 19px; line-height: 44px; }
+  </style>
+</head>
+<body>
+  <canvas id="planet" aria-hidden="true"></canvas>
+  <header class="top"><span class="mark">exosphere</span></header>
+  <section id="hero">
+    <input class="ask" id="address" type="url" placeholder="Server address" aria-label="Server address"
+      autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+    <span class="note" id="note" role="alert"></span>
+    <button id="go">Connect</button>
+  </section>
+  <script src="connect.js"></script>
+</body>
+</html>

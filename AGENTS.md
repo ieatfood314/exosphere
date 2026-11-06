@@ -7,6 +7,7 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
 - `exosphere/source.py` is the only module that talks to X. `normalize.py` turns tweets into
   the site's JSON, `poller.py` is the background loop, `db.py` is storage, `app.py` the API.
 - `exosphere/static/` is the whole front end, served as is.
+- `android/` is a WebView shell around the live site: Java, no Gradle, no dependencies.
 - Data and burner cookies: `~/.local/share/exosphere/` (`exosphere.db`, `accounts.db`).
 
 ## This repo is public
@@ -55,6 +56,25 @@ Seeded data comes from a recording, so dev never touches X. With no account in `
 the poller makes no requests.
 Parallel sessions all default to port 4601, and a busy port still answers with someone else's
 code. Check it's free first, or pick another.
+
+## Android
+The app loads the site from your server, so site changes need no new APK. Only changes under
+`android/` do. It builds in seconds, so nas needs nothing heavier:
+```
+ANDROID_HOME=<sdk> JAVA_HOME=<jdk17> android/build.sh
+```
+To publish, bump `android/version` (`<name> <code>`, higher code every time), push, then run
+`android/release.sh`. Obtainium reads GitHub releases, and the tag has to match the version name.
+- The server address is asked for on first launch, never built in, because the APK is public.
+- The release key is `~/.config/exosphere/android.jks`. Lose it and installed apps can't update.
+- No JS bridge. The connect screen talks to the app by navigating to `exosphere://connect`, so
+  the live site gets no native access.
+- The app keeps the system bars as black strips. Under the status bar, posts would run through
+  the clock, as the site has no sticky header.
+- `build.sh` copies `style.css` and the fonts into the APK for the connect screen, so classes
+  it uses (`.top`, `.mark`, `.ask`, `.note`, `#hero`) need to keep working there.
+- HTTPS only, except `localhost` and `10.0.2.2` for a dev server. The emulator reaches
+  `http://10.0.2.2:4601`. Test against that, as the live site would move your real read position.
 
 ## Deploy
 `deploy/exosphere.service` goes in `~/.config/systemd/user/`. After a code change run

@@ -33,6 +33,13 @@ echo '{"auth_token":"...","ct0":"..."}' | uv run exosphere account <username>
 
 Session cookies are kept in `~/.local/share/exosphere/accounts.db`.
 
+## Android app
+
+The app is the same site in its own window, so it needs your server running. Add
+`https://github.com/ieatfood314/exosphere` to [Obtainium](https://github.com/ImranR98/Obtainium),
+or take the APK from [Releases](https://github.com/ieatfood314/exosphere/releases). On first
+launch it asks for your server's address. It has to be HTTPS, which `tailscale serve` gives you.
+
 ## Settings
 
 Environment variables: `EXOSPHERE_DATA`, `EXOSPHERE_HOST`, `EXOSPHERE_PORT`,
