@@ -146,6 +146,11 @@ final class Shelf {
         }
     }
 
+    /** A page the server says hasn't changed counts as freshly saved, so it doesn't expire. */
+    void keepPage(String url) {
+        new File(pages, name(url)).setLastModified(System.currentTimeMillis());
+    }
+
     boolean hasMedia(String url) {
         return new File(media, name(url)).isFile();
     }

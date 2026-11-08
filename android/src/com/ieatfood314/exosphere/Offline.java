@@ -14,7 +14,9 @@ import java.util.Map;
 
 /**
  * Sits between the WebView and the network. The site's own pages go to the network first and
- * fall back to the Shelf, so a fresh answer always wins. Photos come from the Shelf when it has
+ * fall back to the Shelf, so a fresh answer always wins. A page with a saved copy asks the server
+ * whether it changed first, because this skips the WebView's own cache and the fonts and script
+ * would otherwise come down again on every open. Photos come from the Shelf when it has
  * them. Videos are left to the WebView unless the server is out of reach, so one that's only
  * being watched online never goes through here.
  */
@@ -45,8 +47,14 @@ final class Offline {
         if (!api && !"/".equals(path) && (path == null || !path.startsWith("/static/"))) return null;
 
         if (System.currentTimeMillis() >= retryAt) {
+            Shelf.Item had = shelf.get(url);
             try {
-                Syncer.Response response = Syncer.get(url, CONNECT_MS, READ_MS);
+                Syncer.Response response = Syncer.get(url, CONNECT_MS, READ_MS, had == null ? null : had.headers.get("etag"));
+                if (response.status == 304 && had != null) {
+                    down = false;
+                    shelf.keepPage(url);
+                    return copy(had, false);
+                }
                 if (response.status < 500) {
                     down = false;
                     if (response.status == 200) shelf.putPage(url, response.headers, response.body);
@@ -67,10 +75,14 @@ final class Offline {
 
     private WebResourceResponse saved(String url) {
         Shelf.Item item = shelf.get(url);
-        if (item == null) return null;
+        return item == null ? null : copy(item, true);
+    }
+
+    /** `stale` marks it as the saved copy, for the site to say so. A 304 means it's current. */
+    private static WebResourceResponse copy(Shelf.Item item, boolean stale) {
         try {
             Map<String, String> headers = new HashMap<>(item.headers);
-            headers.put(Shelf.SAVED, String.valueOf(item.savedAt));
+            if (stale) headers.put(Shelf.SAVED, String.valueOf(item.savedAt));
             return web(200, headers, item.open(0));
         } catch (IOException unreadable) {
             return null;

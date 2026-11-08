@@ -30,7 +30,7 @@ public class OfflineCheck {
         final Map<String, byte[]> files = new LinkedHashMap<>();
         String list = "";
         int listStatus = 200;
-        final AtomicInteger hits = new AtomicInteger();
+        final AtomicInteger hits = new AtomicInteger(), notModified = new AtomicInteger();
 
         Site() throws IOException {
             http = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -43,6 +43,15 @@ public class OfflineCheck {
                 exchange.getResponseHeaders().set("content-type", path.endsWith(".mp4") ? "video/mp4" : "text/html; charset=utf-8");
                 exchange.getResponseHeaders().set("content-security-policy", "default-src 'self'");
                 exchange.getResponseHeaders().set("set-cookie", "nope=1");
+                if (body != null && status == 200) {
+                    String etag = "\"" + Arrays.hashCode(body) + "\"";
+                    exchange.getResponseHeaders().set("etag", etag);
+                    if (etag.equals(exchange.getRequestHeaders().getFirst("if-none-match"))) {
+                        notModified.incrementAndGet();
+                        status = 304;
+                        body = null;
+                    }
+                }
                 if (body == null) body = new byte[0];
                 exchange.sendResponseHeaders(status, body.length == 0 ? -1 : body.length);
                 if (body.length > 0) exchange.getResponseBody().write(body);
@@ -139,6 +148,11 @@ public class OfflineCheck {
         new Syncer(shelf, b, () -> false, 1_000_000, 5000).run();
         site.files.remove("/photo.jpg");
         check("saved media isn't fetched again", site.hits.get() - before == 1 + 3 + 2);
+        check("unchanged pages aren't downloaded again", site.notModified.get() == 2);
+        check("and their saved copy stays", new String(shelf.get(b + "/").body(), StandardCharsets.UTF_8).equals("<html>"));
+        site.files.put("/", "<html>v2".getBytes(StandardCharsets.UTF_8));
+        new Syncer(shelf, b, () -> false, 1_000_000, 5000).run();
+        check("a changed page is saved again", new String(shelf.get(b + "/").body(), StandardCharsets.UTF_8).equals("<html>v2"));
 
         site.list = "/\n" + b + "/small.mp4";
         new Syncer(shelf, b, () -> false, 1_000_000, 5000).run();
@@ -166,6 +180,14 @@ public class OfflineCheck {
         site.list = "/\n/api/feed\n" + b + "/photo.jpg";
         new Syncer(stopped, b, () -> true).run();
         check("a stopped sync stops", stopped.get(b + "/") == null);
+
+        // Asked once for the page, once before the photo, then again as the photo starts coming in.
+        Shelf midway = freshShelf();
+        site.list = "/\n" + b + "/photo.jpg";
+        AtomicInteger asks = new AtomicInteger();
+        new Syncer(midway, b, () -> asks.incrementAndGet() >= 3).run();
+        check("a sync stopped mid-file drops the file", midway.get(b + "/") != null && !midway.hasMedia(b + "/photo.jpg"));
+        check("and leaves no temp file behind", midway.mediaBytes() == 0);
 
         site.http.stop(0);
         boolean down = false;

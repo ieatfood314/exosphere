@@ -82,6 +82,10 @@ ANDROID_HOME=<sdk> JAVA_HOME=<jdk17> android/build.sh
   for. Change a request in one and change the other. Query order and `%3A` don't matter.
 - Offline, New can end mid-page, so Earlier there walks the saved pages (`savedEarlier`).
 - Only the site's GETs have copies. Follows and unfollows need the server.
+- Mind mobile data. The app's network is Tailscale's VPN, so "unmetered" can't be trusted alone:
+  `SyncJob.onWifi` looks for real unmetered Wi-Fi underneath, before and during a sync, and a
+  file stops downloading partway once it's gone. `Offline` bypasses the WebView cache, so it
+  revalidates saved pages by etag; the server gzips.
 - `Shelf` and `Syncer` are plain Java so `android/test.sh` can run them off the phone. Keep
   `android.*` out of them.
 - HTTPS only, except `localhost` and `10.0.2.2` for a dev server. The emulator reaches

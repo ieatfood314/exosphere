@@ -8,11 +8,17 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 
 import java.io.File;
 import java.io.IOException;
 
-/** Keeps the Shelf current. Only runs on an unmetered network, which in practice means Wi-Fi. */
+/**
+ * Keeps the Shelf current, on Wi-Fi only. The app's network is Tailscale's VPN, and whether that
+ * reads as metered depends on Tailscale, so the job's own network rule isn't enough on its own:
+ * it also looks for a real unmetered Wi-Fi underneath, before it starts and all the way through.
+ */
 public class SyncJob extends JobService {
     private static final int HOURLY = 1, SOON = 2;
     private static final long HOUR_MS = 60L * 60 * 1000;
@@ -48,11 +54,11 @@ public class SyncJob extends JobService {
         long now = System.currentTimeMillis();
         boolean tooSoon = params.getJobId() == SOON && now - prefs.getLong("synced", 0) < SOON_GAP_MS;
         // Tailscale is a VPN, so check the network that's really in use as well as the job's rule.
-        if (server == null || tooSoon || getSystemService(ConnectivityManager.class).isActiveNetworkMetered()) return false;
+        if (server == null || tooSoon || !onWifi(this)) return false;
         stopped = false;
         new Thread(() -> {
             try {
-                new Syncer(new Shelf(shelfDir(this)), server, () -> stopped).run();
+                new Syncer(new Shelf(shelfDir(this)), server, () -> stopped || !onWifi(this)).run();
                 if (!stopped) prefs.edit().putLong("synced", System.currentTimeMillis()).apply();
             } catch (IOException | RuntimeException unreachable) {
                 // Tailscale may be off. The next run tries again, and what's saved stays saved.
@@ -60,6 +66,21 @@ public class SyncJob extends JobService {
             jobFinished(params, false);
         }).start();
         return true;
+    }
+
+    /** Wi-Fi or Ethernet that is up, reaches the internet and isn't a hotspot. Android prefers it to
+     * mobile data whenever it has one like that, so mobile data isn't what's carrying the sync. */
+    @SuppressWarnings("deprecation") // getAllNetworks: the replacement is a callback, and this asks once
+    static boolean onWifi(Context context) {
+        ConnectivityManager connectivity = context.getSystemService(ConnectivityManager.class);
+        for (Network network : connectivity.getAllNetworks()) {
+            NetworkCapabilities caps = connectivity.getNetworkCapabilities(network);
+            if (caps == null || caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue;
+            boolean wifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+            if (wifi && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+                && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return true;
+        }
+        return false;
     }
 
     @Override

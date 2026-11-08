@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from starlette.applications import Starlette
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
@@ -181,4 +182,5 @@ def create_app(store: Store | None = None, source=None, poll: bool = True) -> St
         lifespan=lifespan,
     )
     app.add_middleware(Guard)
+    app.add_middleware(GZipMiddleware)  # the phone is often on mobile data, and JSON shrinks to a quarter
     return app

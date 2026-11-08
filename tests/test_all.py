@@ -281,6 +281,16 @@ def test_page_and_security_headers(client):
     assert response.status_code == 200 and "script-src 'self'" in response.headers["content-security-policy"]
 
 
+def test_compressed_and_unchanged_files_cost_little(client):
+    """The Android app asks with the saved copy's etag, so a static file it has comes back empty."""
+    script = client.get("/static/app.js", headers={"accept-encoding": "gzip"})
+    assert script.headers["content-encoding"] == "gzip"
+    assert int(script.headers["content-length"]) < len(script.content) / 2
+    again = client.get("/static/app.js", headers={"if-none-match": script.headers["etag"]})
+    assert again.status_code == 304 and again.content == b""
+    assert "script-src 'self'" in again.headers["content-security-policy"]
+
+
 def test_feed_is_finite_new_only(client):
     client.store.save_posts("1", [make(1), make(2, 1000)], backfill=True)
     assert [p["id"] for p in client.get("/api/feed").json()["posts"]] == ["1"]
