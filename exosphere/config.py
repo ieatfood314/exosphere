@@ -23,3 +23,9 @@ POLL_FETCH = 20  # posts pulled on a normal poll
 GAP_FETCH = 100  # posts pulled when a normal poll found nothing we already had
 
 NTFY_URL = os.environ.get("EXOSPHERE_NTFY_URL", "")  # pinged when the burner stops working
+
+# The public mirror (exosphere/mirror.py). It only ever receives; nothing comes back from it.
+MIRROR_URL = os.environ.get("EXOSPHERE_MIRROR_URL", "")
+MIRROR_SECRET_FILE = Path(os.environ.get("EXOSPHERE_MIRROR_SECRET_FILE", "~/.config/exosphere/mirror.secret")).expanduser()
+MIRROR_STATE = Path(os.environ.get("EXOSPHERE_MIRROR_STATE", "~/.local/state/exosphere-mirror")).expanduser()
+MIRROR_HEARTBEAT = 3 * 3600  # resend unchanged anyway this often, so the mirror knows we're alive

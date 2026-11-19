@@ -1,0 +1,11 @@
+[Unit]
+Description=exosphere: send the feed to the public mirror
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/repos/exosphere
+# Set EXOSPHERE_MIRROR_URL in an override: systemctl --user edit exosphere-mirror
+ExecStart=%h/repos/exosphere/.venv/bin/exosphere mirror
+MemoryMax=200M
+Nice=10

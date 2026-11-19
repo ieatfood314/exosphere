@@ -6,7 +6,10 @@ const BASE_KM = 700, TOP_KM = 10000; // where the exosphere starts and thins int
 const AWAY_MS = 5 * 60 * 1000;     // a shorter absence is a glance elsewhere, so the page stays put
 const READING_MS = 30 * 60 * 1000; // scrolled down, you may be off reading a link, so wait longer
 const NEWEST = `${2 ** 40}:9`; // a cursor above every post
-const STATUS = { none: "No X account", blocked: "X blocked us", waiting: "Waiting on X", offline: "Offline" };
+const STATUS = { none: "No X account", blocked: "X blocked us", waiting: "Waiting on X", offline: "Offline", stale: "Not updated lately" };
+// A public, read-only copy of someone's feed. Nobody can follow or unfollow there, and your
+// read position stays in this browser: it goes along with each request instead of to the server.
+const MIRROR = document.documentElement.hasAttribute("data-mirror");
 
 let state = { creators: [], status: "ok" };
 let view = { name: "new" };
@@ -32,6 +35,7 @@ function el(tag, props = {}, ...kids) {
 }
 
 async function api(path, options) {
+  if (MIRROR && !options) path += `${path.includes("?") ? "&" : "?"}seen=${unsentCheck()}`;
   const response = await fetch(path, options);
   if (response.status === 204) return null;
   if (!options) saved = Number(response.headers.get("x-exosphere-saved")) || 0;
@@ -136,7 +140,7 @@ function drawOrbit() {
       link.append(...node.childNodes);
       return link;
     }),
-    el("a", { class: "sat add", href: "#/add", title: "Add someone", "aria-label": "Add someone" }, "+"));
+    ...(MIRROR ? [] : [el("a", { class: "sat add", href: "#/add", title: "Add someone", "aria-label": "Add someone" }, "+")]));
   bendOrbit();
 }
 
@@ -248,7 +252,7 @@ function unfollowButton(id) {
    pointer because Firefox for Android opens its own menu on any link or image it's held on. */
 function openMenu(id, x, y) {
   const person = state.creators.find((creator) => creator.id === id);
-  if (!person || menu.open) return;
+  if (MIRROR || !person || menu.open) return;
   const button = el("button", { class: "plain", on: { click: async () => {
     button.disabled = true;
     try {
@@ -272,7 +276,7 @@ const unsentCheck = () => Number(localStorage.getItem("seen")) || 0;
 
 async function sendSeen(options) {
   const until = unsentCheck();
-  if (!until) return;
+  if (MIRROR || !until) return; // a mirror keeps it here for good
   try {
     await post("/api/seen", { until }, options);
     if (unsentCheck() === until) localStorage.removeItem("seen");
@@ -297,7 +301,7 @@ async function showNew() {
   reset();
   more = page.more;
   const count = page.posts.length;
-  if (!state.creators.length) {
+  if (!state.creators.length && !MIRROR) {
     hero.replaceChildren(el("a", { class: "count none", href: "#/add" }, "Add someone"));
   } else if (count) {
     hero.replaceChildren(el("span", { class: "count" }, String(count)), el("span", { class: "sub" }, count === 1 ? "new post" : "new posts"));
@@ -331,11 +335,11 @@ async function showPerson(id) {
   more = page.more;
   const waiting = !person.polled_at;
   const line = person.error ? "Fetch failed" : waiting ? "Fetching" : person.protected ? `@${person.handle} · private` : `@${person.handle}`;
-  hero.replaceChildren(el("h1", { class: "title", "data-person": id }, person.name), el("span", { class: "sub" }, line), unfollowButton(id));
+  hero.replaceChildren(el("h1", { class: "title", "data-person": id }, person.name), el("span", { class: "sub" }, line), ...(MIRROR ? [] : [unfollowButton(id)]));
   feed.append(filterTabs());
   addPosts(page.posts);
   finish();
-  if (waiting) {
+  if (waiting && !MIRROR) {
     fetchTimer = setTimeout(async () => {
       await refreshState();
       if (view.id === id) showPerson(id);
@@ -397,7 +401,7 @@ function showAdd() {
 }
 
 function showStatus() {
-  $("status").textContent = saved ? `${STATUS.offline} · saved ${ago(saved)}` : STATUS[state.status] || "";
+  $("status").textContent = saved ? `${STATUS.offline} · saved ${ago(saved)}` : STATUS[state.status] || (MIRROR ? "Read only" : "");
 }
 
 async function refreshState() {
@@ -416,7 +420,7 @@ async function route() {
   const path = location.hash.replace(/^#\/?/, "");
   const [section, id] = path.split("/");
   view = section === "p" ? { name: "person", id } : { name: section || "new" };
-  if (!["new", "all", "person", "people", "add"].includes(view.name)) view = { name: "new" };
+  if (!["new", "all", "person", "people", "add"].includes(view.name) || (MIRROR && view.name === "add")) view = { name: "new" };
   drawOrbit();
   scrollTo(0, 0);
   $("altitude").hidden = view.name === "people" || view.name === "add";

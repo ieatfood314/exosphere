@@ -8,6 +8,7 @@ vanilla JS front end. Runs as the `exosphere` user service on port 4600.
   the site's JSON, `poller.py` is the background loop, `db.py` is storage, `app.py` the API.
 - `exosphere/offline.py` lists what the Android app saves for reading offline.
 - `exosphere/static/` is the whole front end, served as is.
+- `exosphere/mirror.py` and `mirror/` are the public, read-only copy on Lakebed (below).
 - `android/` is a WebView shell around the live site: Java, no Gradle, no dependencies.
 - Data and burner cookies: `~/.local/share/exosphere/` (`exosphere.db`, `accounts.db`).
 
@@ -42,6 +43,23 @@ is out of files and commit messages. Notes about one particular install go somew
   replies to others and no reposts. It reads the stored JSON, so old rows need no migration.
   `only=posts` must go on `/api/state` as well as `/api/feed`, or the orbit glows for posts
   the feed is hiding.
+
+## Public mirror
+A read-only copy of the feed on Lakebed, for anyone. It must never be able to hurt the real one:
+- One way only. `exosphere mirror` (a 20-minute user timer) opens `exosphere.db` read-only and
+  POSTs a snapshot to `/api/mirror` with a bearer secret. The mirror never calls back, never
+  touches X, and gets no cookies, no read position and no poll error text.
+- `mirror/server/index.ts` re-implements `/api/state` and `/api/feed` in TypeScript from that
+  snapshot. Change the feed rules in `db.py` (new, `OWN_POSTS`, paging) and change them there too.
+- `app.js` runs as is, wrapped by `mirror/publish.py`. `MIRROR` (`data-mirror` on `<html>`) hides
+  following, and sends the browser's read position as `?seen=` instead of posting it. A first visit
+  sees the last day.
+- Lakebed's limits shape it: 1 MiB stored (the snapshot is held to 640 KB, each creator keeps
+  their newest 10), 64 KiB per field (it's stored in 60,000-character ASCII chunks), 10,000
+  requests and 1,000 writes a day. The pusher skips unchanged snapshots but resends every 3 hours,
+  and the mirror says "Not updated lately" after 4.
+- `mirror/publish.py` regenerates `~/lakebed-apps/exosphere` and deploys. Rerun it after changing
+  `exosphere/static` or `mirror/`, or the mirror keeps the old page.
 
 ## Design
 Go-wild design, not the usual ui-taste. Earth hangs overhead; scrolling climbs from 700 km to

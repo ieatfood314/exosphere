@@ -493,3 +493,35 @@ def test_offline_never_touches_x(client, store):
     client.source.account = None  # anything reaching for the source now blows up
     assert offline_list(client)
     assert client.source.calls == []
+
+
+# mirror
+
+
+def test_mirror_snapshot_reads_without_writing(store, tmp_path):
+    from exosphere.mirror import snapshot
+
+    store.save_posts("1", [make(1, reply_to={"handle": "a"}), make(2)], backfill=False)
+    store.mark_seen(123)
+    path = tmp_path / "t.db"
+    before = path.read_bytes()
+    data = json.loads(snapshot(path))
+    assert path.read_bytes() == before
+    assert [p["id"] for p in data["posts"]] == ["2", "1"]
+    assert data["posts"][0]["cid"] == "1" and "fetched_at" in data["posts"][0]
+    assert data["creators"][0]["handle"] == "a"
+    assert "seen" not in json.dumps(data)  # your read position stays home
+
+
+def test_mirror_snapshot_fits_and_keeps_quiet_accounts(store, tmp_path):
+    from exosphere.mirror import KEEP_EACH, snapshot
+
+    store.add_creator("2", "b", "Bea", "", False)
+    now = int(time.time())
+    store.save_posts("1", [make(100 + i, now - i, text="x" * 500) for i in range(200)], backfill=False)
+    store.save_posts("2", [make(i, now - 10_000 - i) for i in range(1, 20)], backfill=False)
+    body = snapshot(tmp_path / "t.db", max_bytes=40_000)
+    assert len(body) <= 40_000 and body.isascii()
+    posts = json.loads(body)["posts"]
+    assert sum(p["cid"] == "2" for p in posts) == KEEP_EACH
+    assert [p["at"] for p in posts] == sorted((p["at"] for p in posts), reverse=True)

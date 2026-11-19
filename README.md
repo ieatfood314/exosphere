@@ -43,11 +43,34 @@ launch it asks for your server's address. It has to be HTTPS, which `tailscale s
 It works offline too. On Wi-Fi it saves your latest posts, photos and videos up to 25 MB each,
 within 512 MB. Whatever you read offline counts as read once you're back.
 
+## Public mirror
+
+You can put a read-only copy of your feed on the open web, hosted free on
+[Lakebed](https://lakebed.dev). Nobody there can follow or unfollow, and each visitor's New is
+kept in their own browser. Your server sends it posts and never takes anything back, and the
+mirror never touches X. It holds the newest posts that fit in about 640 KB, about a week's worth.
+
+```
+python3 mirror/publish.py
+```
+
+builds the Lakebed app in `~/lakebed-apps/exosphere` and deploys it (Node 22.18+, and
+`npx lakebed auth login` once). Then send posts to it every 20 minutes:
+
+```
+cp deploy/exosphere-mirror.* ~/.config/systemd/user/
+systemctl --user edit exosphere-mirror
+systemctl --user enable --now exosphere-mirror.timer
+```
+
+In the override, set `Environment=EXOSPHERE_MIRROR_URL=https://<your app>.lakebed.app`.
+
 ## Settings
 
 Environment variables: `EXOSPHERE_DATA`, `EXOSPHERE_HOST`, `EXOSPHERE_PORT`,
 `EXOSPHERE_CYCLE_MINUTES` (default 30), `EXOSPHERE_MIN_GAP_SECONDS` (default 60),
-`EXOSPHERE_NTFY_URL` (pinged when the account stops working).
+`EXOSPHERE_NTFY_URL` (pinged when the account stops working), `EXOSPHERE_MIRROR_URL`,
+`EXOSPHERE_MIRROR_SECRET_FILE` (default `~/.config/exosphere/mirror.secret`).
 
 ## Credits
 
