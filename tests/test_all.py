@@ -8,7 +8,7 @@ from starlette.testclient import TestClient
 from exosphere import config
 from exosphere.app import create_app
 from exosphere.db import Store
-from exosphere.normalize import post
+from exosphere.normalize import bio, post
 from exosphere.poller import Poller
 from exosphere.source import Blocked, Profile, RateLimited, Source, as_handle
 from twscrape.models import parse_tweets
@@ -384,6 +384,11 @@ async def test_bare_word_is_a_name_search(query, logins, searches):
     source.api = FakeApi()
     assert (await source.find(query))[0].bio == "hi"
     assert (source.api.logins, source.api.searches) == (logins, searches)
+
+
+def test_bios_lose_short_links_and_entities():
+    assert bio("Codex &amp; ChatGPT https://t.co/abc") == "Codex & ChatGPT"
+    assert bio(None) == ""
 
 
 def test_add_many_matches_asks_then_adds(client):

@@ -11,6 +11,10 @@ def avatar(url: str | None) -> str:
     return re.sub(r"_normal(\.\w+)$", r"_200x200\1", url or "")
 
 
+def bio(text: str | None) -> str:
+    return html.unescape(TCO.sub("", text or "")).strip()
+
+
 def clean_text(tweet) -> str:
     text = tweet.rawContent
     start = (tweet.displayTextRange or [0])[0]

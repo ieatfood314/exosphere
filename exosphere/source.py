@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from . import config  # noqa: F401  (turns off twscrape telemetry before the import below)
 from twscrape import API, NoAccountError
 
-from .normalize import avatar, post
+from .normalize import avatar, bio, post
 
+MATCHES = 10  # X sends 20 a page, so this costs one request whatever it is
 HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 PROFILE_URL = re.compile(r"(?:twitter|x)\.com/@?([A-Za-z0-9_]{1,15})(?:[/?#]|$)", re.I)
 
@@ -48,7 +49,7 @@ def profile(user) -> Profile:
         user.displayname,
         avatar(user.profileImageUrl),
         bool(user.protected),
-        (user.rawDescription or "")[:160],
+        bio(user.rawDescription)[:160],
     )
 
 
@@ -77,7 +78,7 @@ class Source:
             if handle := as_handle(query):
                 if user := await self.api.user_by_login(handle):
                     return [profile(user)]
-            return [profile(u) async for u in self.api.search_user(query.strip(), limit=5)][:5]
+            return [profile(u) async for u in self.api.search_user(query.strip(), limit=MATCHES)][:MATCHES]
         except NoAccountError:
             raise await self._no_account()
 

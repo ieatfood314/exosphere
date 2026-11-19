@@ -81,7 +81,7 @@ button { cursor: pointer; }
 .ask::placeholder { color: var(--faint); }
 .note { display: block; margin-top: 12px; color: var(--dawn); }
 .match { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: left; line-height: 1.2; }
-.match > span:last-child { min-width: 0; }
+.match > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .match small.bio { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .match small { display: block; color: var(--dim); font: 400 10.5px/1.6 Martian, monospace; }
 
