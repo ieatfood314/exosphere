@@ -15,19 +15,23 @@
 <body>
   <canvas id="stars" aria-hidden="true"></canvas>
   <canvas id="planet" aria-hidden="true"></canvas>
+  <button id="earth" aria-label="Everyone in orbit" aria-expanded="false" aria-controls="chart"></button>
   <header class="top">
     <a class="mark" href="#/">exosphere</a>
-    <span id="status" role="status"></span>
+    <nav class="tabs">
+      <a class="tab" data-view="new" href="#/">New</a>
+      <a class="tab" data-view="all" href="#/all">All</a>
+      <a class="tab" data-view="people" href="#/people">People</a>
+    </nav>
   </header>
-  <nav id="orbit">
-    <a class="tab" data-view="new" href="#/">New</a>
-    <a class="tab" data-view="all" href="#/all">All</a>
-    <a class="tab" data-view="people" href="#/people">People</a>
-  </nav>
+  <nav id="orbit" aria-label="People"></nav>
+  <section id="chart" hidden></section>
   <section id="hero"></section>
   <main id="feed"></main>
   <footer id="edge"></footer>
+  <p id="fine" hidden>A read-only copy of one person's exosphere. Not affiliated with X.</p>
   <dialog id="menu"></dialog>
+  <span id="status" role="status"></span>
   <div id="altitude" aria-hidden="true"><i id="altitude-dot"></i><span id="altitude-km"></span></div>
   <script src="/static/app.js" type="module"></script>
 </body>

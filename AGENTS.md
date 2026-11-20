@@ -68,6 +68,14 @@ A read-only copy of the feed on Lakebed, for anyone. It must never be able to hu
 Go-wild design, not the usual ui-taste. Earth hangs overhead; scrolling climbs from 700 km to
 10,000 km, the real top of the exosphere, where the feed ends. Airglow green `#7DFFB4` is the
 one live color. The limb is painted on a canvas because big blurred box-shadows clip badly.
+- The arc under the limb holds only people. New, All and People are small tabs in the top bar.
+- Tapping Earth (`#earth`) lays the whole orbit out as a grid (`#chart`). It's a history step,
+  so Back closes it, and picking someone replaces that step instead of adding one.
+- A person's page is a list to choose from: a few lines of each post with a thumbnail, opened
+  in place with a tap. New and All stay full posts, with a rule between them.
+- The altitude rail is the scrollbar, so the browser's own is hidden. The status sits bottom
+  left, opposite the altitude.
+- On the mirror, a line of small print under the feed says what it is, not a status up top.
 
 ## Dev
 ```

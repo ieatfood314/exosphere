@@ -15,7 +15,8 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--void); -webkit-text-size-adjust: 100%; }
+html { background: var(--void); -webkit-text-size-adjust: 100%; scrollbar-width: none; } /* the altitude rail is the scrollbar */
+html::-webkit-scrollbar { display: none; }
 body {
   margin: 0; min-height: 100vh; overflow-x: hidden; position: relative;
   color: var(--ink); background: var(--void);
@@ -27,7 +28,7 @@ button, input { font: inherit; color: inherit; background: none; border: 0; padd
 button { cursor: pointer; }
 :focus-visible { outline: 1px solid var(--airglow); outline-offset: 3px; }
 
-.mono, .mark, #status, .who, .when, .label, #altitude, .sorts, .sub, .plain {
+.mono, .mark, .tab, #status, .who, .when, .label, #altitude, .sorts, .sub, .plain, #fine {
   font: 400 10.5px/1.5 Martian, ui-monospace, monospace;
   letter-spacing: .08em;
 }
@@ -36,14 +37,37 @@ button { cursor: pointer; }
 #stars { position: fixed; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
 #planet { position: absolute; top: 0; left: 0; width: 100%; height: 560px; pointer-events: none; }
 
-/* top bar, on the night of the planet */
+/* top bar, on the night of the planet. Only its links take taps; the rest is Earth. */
 .top {
   position: relative; z-index: 2; display: flex; align-items: baseline; gap: 16px;
   width: var(--col); height: calc(env(safe-area-inset-top) + 44px);
-  margin: 0 auto; padding-top: calc(env(safe-area-inset-top) + 20px);
+  margin: 0 auto; padding-top: calc(env(safe-area-inset-top) + 20px); pointer-events: none;
 }
+.top > * { pointer-events: auto; }
 .mark { color: var(--ink); letter-spacing: .34em; }
-#status { color: var(--dawn); }
+.tabs { display: flex; gap: 4px; margin: -12px -10px 0 auto; }
+.tab { position: relative; padding: 12px 10px; color: var(--dim); text-transform: uppercase; }
+.tab:hover { color: var(--ink); }
+.tab[aria-current] { color: var(--ink); }
+.tab.new::after { content: ""; position: absolute; top: 10px; right: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--airglow); box-shadow: 0 0 6px var(--airglow); }
+#status:empty { display: none; }
+#status { position: fixed; z-index: 3; left: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 3px 6px; background: #000c; color: var(--dawn); }
+
+/* Earth itself: tap it for the whole orbit at once */
+#earth { position: absolute; z-index: 1; top: 0; left: 0; width: 100%; height: var(--limb-y); border-radius: 0 0 50% 50% / 0 0 40px 40px; }
+#earth:focus-visible { outline-offset: -2px; }
+.charted :is(#orbit, #hero, #feed, #edge, #fine, #altitude) { display: none !important; }
+#chart { position: relative; width: var(--col); margin: calc(var(--limb-y) + 56px) auto 0; padding-bottom: 20vh; }
+#chart > p { margin: 0 0 22px; color: var(--dim); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 26px 10px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; font-size: 13px; line-height: 1.25; color: var(--dim); }
+.tile .sat { width: 56px; height: 56px; pointer-events: none; }
+.tile.new .sat { box-shadow: 0 0 0 1px var(--airglow), 0 0 12px #7dffb440; }
+.tile[aria-current] .sat { box-shadow: 0 0 0 1.5px var(--ink); }
+.tile:hover, .tile[aria-current], .tile.new { color: var(--ink); }
+.tile:hover img { filter: none; }
+.tile .name { max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.tile .fresh { position: absolute; top: -4px; left: calc(50% + 20px); color: var(--airglow); font: 400 11px/1 Martian, monospace; }
 
 /* satellites along the arc */
 #orbit { /* tall enough that satellites can climb the arc without being clipped */
@@ -66,8 +90,6 @@ button { cursor: pointer; }
 .sat[aria-current] img, .sat:hover img { filter: none; }
 .sat.add { background: none; box-shadow: inset 0 0 0 1px var(--faint); color: var(--ink); font-size: 24px; }
 
-.tab { flex: none; height: 44px; font-size: 19px; line-height: 44px; color: var(--dim); scroll-snap-align: center; will-change: transform; }
-.tab[aria-current] { color: var(--ink); }
 
 /* the one big thing */
 #hero { position: relative; width: var(--col); margin: calc(var(--limb-y) + 112px - 44px) auto 0; }
@@ -86,10 +108,11 @@ button { cursor: pointer; }
 .match small { display: block; color: var(--dim); font: 400 10.5px/1.6 Martian, monospace; }
 
 /* posts */
-#feed { position: relative; width: var(--col); margin: 56px auto 0; }
+#feed { position: relative; width: var(--col); margin: 40px auto 0; }
 .day { display: flex; align-items: center; gap: 14px; color: var(--faint); margin: 72px 0 40px; }
 .day::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
-.post { margin: 0 0 60px; }
+.post { margin: 0 0 44px; }
+#feed:not(.briefs) .post + .post { border-top: 1px solid var(--rule); padding-top: 44px; }
 .head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 .who { color: var(--ink); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .when { color: var(--dim); margin-left: auto; flex: none; }
@@ -102,6 +125,24 @@ button { cursor: pointer; }
 .media { display: grid; gap: 3px; margin-top: 14px; }
 .media.two { grid-template-columns: 1fr 1fr; }
 .media img, .media video { display: block; width: 100%; max-height: 70vh; object-fit: cover; background: #06090f; }
+
+/* a person's page: one row per post, opened in place */
+.brief { margin: 0; border-bottom: 1px solid var(--rule); }
+.peek { display: grid; grid-template-columns: 1fr auto; column-gap: 18px; width: 100%; padding: 18px 0; text-align: left; }
+.peek .head { grid-column: 1 / -1; margin-bottom: 6px; min-width: 0; }
+.peek .label { margin: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gist { grid-column: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.gist.quiet { color: var(--dim); }
+.peek .kind { grid-column: 1; margin: 8px 0 0; color: var(--faint); }
+.briefs .filter + .brief { border-top: 1px solid var(--rule); margin-top: 12px; }
+.thumb { grid-column: 2; grid-row: 2 / span 2; align-self: start; width: 64px; height: 64px; object-fit: cover; background: #06090f; pointer-events: none; }
+.peek:hover .gist:not(.quiet) { color: #fff; }
+.brief.open .gist, .brief.open .thumb, .brief.open .kind { display: none; }
+.brief.open .peek { padding-bottom: 4px; }
+.brief.open .peek .when, .brief.open .peek .label { color: var(--ink); }
+.full { padding-bottom: 22px; }
+.full > :first-child { margin-top: 4px; }
+.away { display: inline-block; margin: 10px 0 0 -18px; }
 
 /* people */
 .sorts { display: flex; gap: 18px; margin-bottom: 26px; color: var(--dim); }
@@ -121,6 +162,9 @@ button { cursor: pointer; }
 .plain:hover { color: var(--ink); }
 .plain.warn { color: var(--dawn); }
 #hero .plain { margin: 4px 0 0 -18px; }
+.byline { display: flex; align-items: baseline; margin-top: 12px; }
+.byline .sub { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#hero .byline .plain { margin: -12px -18px -12px auto; flex: none; }
 .earlier .plain { margin: 14px 0 0 -18px; }
 
 /* held or right-clicked names */
@@ -134,6 +178,8 @@ button { cursor: pointer; }
 #altitude[hidden] { display: none; }
 #altitude { position: fixed; right: 0; top: 0; bottom: 0; width: 1px; background: var(--rule); pointer-events: none; color: var(--dim); }
 #altitude-dot { position: absolute; right: -1px; top: 0; width: 3px; height: 14px; background: var(--airglow); }
+#fine { width: var(--col); margin: -18vh auto 0; padding-bottom: calc(env(safe-area-inset-bottom) + 56px); text-align: center; color: var(--faint); }
+#fine[hidden] { display: none; }
 #altitude-km { position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); padding: 3px 6px; background: #000c; white-space: nowrap; }
 
 @media (min-width: 800px) {

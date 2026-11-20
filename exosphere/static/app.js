@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const hero = $("hero"), feed = $("feed"), edge = $("edge"), orbit = $("orbit");
-const tabs = [...orbit.children];
+const tabs = [...document.querySelectorAll(".tab")];
+const earth = $("earth"), chart = $("chart");
 const menu = $("menu"), HOLD_MS = 450;
 const BASE_KM = 700, TOP_KM = 10000; // where the exosphere starts and thins into space
 const AWAY_MS = 5 * 60 * 1000;     // a shorter absence is a glance elsewhere, so the page stays put
@@ -96,25 +97,64 @@ function nested(kind, item) {
     mediaBlock(item.media));
 }
 
-function postNode(item) {
+function postBody(item, labels = true) {
   const body = item.repost || item;
+  return [
+    labels && item.repost && el("div", { class: "label" }, `Reposted ${item.repost.author.name}`),
+    labels && item.reply_to && !item.reply_to.post && el("div", { class: "label" }, `Reply to @${item.reply_to.handle}`),
+    item.reply_to?.post && nested("parent", item.reply_to.post),
+    body.text && el("p", { class: "text" }, richText(body.text)),
+    mediaBlock(body.media),
+    item.quote && nested("quote", item.quote),
+  ];
+}
+
+function postNode(item) {
   return el("article", { class: "post" },
     el("div", { class: "head" },
       el("button", { class: "who", "data-person": item.creator.id }, item.creator.name),
       el("a", { class: "when", href: item.url, target: "_blank", rel: "noopener noreferrer", title: new Date(item.at * 1000).toLocaleString() }, ago(item.at))),
-    item.repost && el("div", { class: "label" }, `Reposted ${item.repost.author.name}`),
-    item.reply_to && !item.reply_to.post && el("div", { class: "label" }, `Reply to @${item.reply_to.handle}`),
-    item.reply_to?.post && nested("parent", item.reply_to.post),
-    body.text && el("p", { class: "text" }, richText(body.text)),
-    mediaBlock(body.media),
-    item.quote && nested("quote", item.quote));
+    postBody(item));
+}
+
+/* A person's page is a list to choose from: a line or three of each post, and a tap opens
+   it in place. Links in the gist are plain text, so a tap anywhere on it opens the post. */
+const shortLinks = (text) => text.replace(/https?:\/\/(www\.)?([^\s/]+)\S*/g, "$2").replace(/\s+/g, " ");
+
+function briefNode(item) {
+  const body = item.repost || item;
+  const label = item.repost ? `Reposted ${item.repost.author.name}`
+    : item.reply_to ? `Reply to @${item.reply_to.handle}`
+    : item.quote ? `Quoting ${item.quote.author.name}` : null;
+  const gist = body.text || item.quote?.text || "";
+  const first = body.media?.[0] || item.quote?.media?.[0];
+  const picture = first && (first.type === "photo" ? first.url : first.poster);
+  const pictures = (body.media?.length || 0) + (item.quote?.media?.length || 0);
+  const kind = !first ? null : first.type === "photo" ? (pictures > 1 ? `${pictures} photos` : "Photo") : first.type === "gif" ? "GIF" : "Video";
+  const node = el("article", { class: "post brief" });
+  let full = null;
+  const peek = el("button", { class: "peek", "aria-expanded": "false", on: { click: () => {
+    const open = node.classList.toggle("open");
+    peek.setAttribute("aria-expanded", String(open));
+    if (open && !full) node.append(full = el("div", { class: "full" }, postBody(item, false),
+      el("a", { class: "plain away", href: item.url, target: "_blank", rel: "noopener noreferrer" }, "Open on X")));
+    if (!open && node.getBoundingClientRect().top < 0) node.scrollIntoView({ block: "start" });
+  } } },
+    el("span", { class: "head" },
+      label && el("span", { class: "label" }, label),
+      el("span", { class: "when", title: new Date(item.at * 1000).toLocaleString() }, ago(item.at))),
+    el("span", { class: "gist" + (body.text ? "" : " quiet") }, shortLinks(gist) || kind || "Post"),
+    picture && el("img", { class: "thumb", src: picture, alt: "", loading: "lazy", referrerpolicy: "no-referrer", on: { error: (event) => event.target.remove() } }),
+    kind && gist && !picture && el("span", { class: "kind label" }, kind));
+  node.append(peek);
+  return node;
 }
 
 function postNodes(posts, previous) {
-  const nodes = [];
+  const nodes = [], brief = view.name === "person"; // a person's page is a list; each row has its date
   for (const item of posts) {
-    if (!previous || dayKey(previous.at) !== dayKey(item.at)) nodes.push(el("div", { class: "day mono" }, dayName(item.at)));
-    nodes.push(postNode(item));
+    if (!brief && (!previous || dayKey(previous.at) !== dayKey(item.at))) nodes.push(el("div", { class: "day mono" }, dayName(item.at)));
+    nodes.push(brief ? briefNode(item) : postNode(item));
     previous = item;
   }
   return nodes;
@@ -146,20 +186,55 @@ function avatar(person) {
   return node;
 }
 
-function drawOrbit() {
-  const people = [...state.creators].sort((a, b) => b.new - a.new || (b.latest || 0) - (a.latest || 0));
-  for (const tab of tabs) tab.toggleAttribute("aria-current", tab.dataset.view === view.name);
-  for (const sat of orbit.querySelectorAll(".sat")) sat.remove(); // the tabs stay, so they keep focus
-  orbit.append(
-    ...people.map((person) => {
-      const node = avatar(person);
-      const link = el("button", { class: `sat${person.new ? " new" : ""}`, "data-person": person.id, title: person.name, "aria-label": person.name, "aria-current": view.id === person.id ? "true" : null });
-      link.append(...node.childNodes);
-      return link;
-    }),
-    ...(MIRROR ? [] : [el("a", { class: "sat add", href: "#/add", title: "Add someone", "aria-label": "Add someone" }, "+")]));
-  bendOrbit();
+const inOrbit = () => [...state.creators].sort((a, b) => b.new - a.new || (b.latest || 0) - (a.latest || 0));
+const addSat = () => (MIRROR ? null : el("a", { class: "sat add", href: "#/add", title: "Add someone", "aria-label": "Add someone" }, "+"));
+
+function satellite(person) {
+  const link = el("button", { class: `sat${person.new ? " new" : ""}`, "data-person": person.id, title: person.name, "aria-label": person.name, "aria-current": view.id === person.id ? "true" : null });
+  link.append(...avatar(person).childNodes);
+  return link;
 }
+
+function drawOrbit() {
+  for (const tab of tabs) tab.toggleAttribute("aria-current", tab.dataset.view === view.name);
+  tabs[0].classList.toggle("new", state.creators.some((person) => person.new));
+  orbit.replaceChildren(...inOrbit().map(satellite), ...[addSat()].filter(Boolean));
+  bendOrbit();
+  if (!chart.hidden) drawChart();
+}
+
+/* Tap Earth and the whole orbit lays out flat beneath it, everyone at once with their names,
+   instead of a row you have to drag sideways. It's a step in history, so Back closes it. */
+function drawChart() {
+  const tiles = inOrbit().map((person) =>
+    el("button", { class: `tile${person.new ? " new" : ""}`, "data-person": person.id, "aria-current": view.id === person.id ? "true" : null },
+      avatar(person), el("span", { class: "name" }, person.name),
+      person.new ? el("span", { class: "fresh" }, String(person.new)) : null));
+  chart.replaceChildren(
+    el("p", { class: "mono" }, `${state.creators.length} in orbit`),
+    el("div", { class: "tiles" }, tiles,
+      !MIRROR && el("a", { class: "tile", href: "#/add" }, el("span", { class: "sat add" }, "+"), el("span", { class: "name" }, "Add someone"))));
+}
+
+function setChart(open) {
+  if (open === !chart.hidden) return;
+  chart.hidden = !open;
+  document.body.classList.toggle("charted", open);
+  earth.setAttribute("aria-expanded", String(open));
+  if (open) {
+    drawChart();
+    scrollTo(0, 0);
+  }
+  onScroll();
+}
+
+earth.addEventListener("click", () => {
+  if (chart.hidden) {
+    history.pushState({ chart: true }, "");
+    setChart(true);
+  } else history.back();
+});
+addEventListener("popstate", () => setChart(Boolean(history.state?.chart)));
 
 const planetRadius = () => Math.max(640, innerWidth * 0.78);
 
@@ -176,6 +251,7 @@ function bendOrbit() {
 /* views */
 function reset() {
   feed.replaceChildren();
+  feed.classList.toggle("briefs", view.name === "person");
   edge.replaceChildren();
   shown = [];
   more = false;
@@ -360,7 +436,7 @@ async function showPerson(id) {
   more = page.more;
   const waiting = !person.polled_at;
   const line = person.error ? "Fetch failed" : waiting ? "Fetching" : person.protected ? `@${person.handle} · private` : `@${person.handle}`;
-  hero.replaceChildren(el("h1", { class: "title", "data-person": id }, person.name), el("span", { class: "sub" }, line), ...(MIRROR ? [] : [unfollowButton(id)]));
+  hero.replaceChildren(el("h1", { class: "title", "data-person": id }, person.name), el("div", { class: "byline" }, el("span", { class: "sub" }, line), MIRROR ? null : unfollowButton(id)));
   feed.append(filterTabs());
   addPosts(page.posts);
   finish();
@@ -426,7 +502,7 @@ function showAdd() {
 }
 
 function showStatus() {
-  $("status").textContent = saved ? `${STATUS.offline} · saved ${ago(saved)}` : STATUS[state.status] || (MIRROR ? "Read only" : "");
+  $("status").textContent = saved ? `${STATUS.offline} · saved ${ago(saved)}` : STATUS[state.status] || "";
 }
 
 async function refreshState() {
@@ -445,6 +521,7 @@ async function route() {
   const path = location.hash.replace(/^#\/?/, "");
   const [section, id] = path.split("/");
   view = section === "p" ? { name: "person", id } : { name: section || "new" };
+  setChart(Boolean(history.state?.chart));
   if (!["new", "all", "person", "people", "add"].includes(view.name) || (MIRROR && view.name === "add")) view = { name: "new" };
   drawOrbit();
   scrollTo(0, 0);
@@ -605,7 +682,11 @@ document.addEventListener("contextmenu", (event) => {
 });
 document.addEventListener("click", (event) => {
   const who = event.target.closest("[data-person]");
-  if (who) location.hash = `#/p/${who.dataset.person}`;
+  const target = who ? `#/p/${who.dataset.person}` : event.target.closest("#chart a")?.getAttribute("href");
+  if (!target) return;
+  event.preventDefault();
+  if (chart.hidden) location.hash = target;
+  else location.replace(target); // in place of the chart's step, so Back skips past it
 });
 menu.addEventListener("click", (event) => {
   if (event.target === menu) menu.close();
@@ -627,6 +708,7 @@ addEventListener("online", async () => {
   await refreshState();
 });
 
+$("fine").hidden = !MIRROR;
 drawStars();
 drawPlanet();
 await catchUp();
