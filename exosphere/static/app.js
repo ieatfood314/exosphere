@@ -13,7 +13,8 @@ const MIRROR = document.documentElement.hasAttribute("data-mirror");
 
 let state = { creators: [], status: "ok" };
 let view = { name: "new" };
-let shown = [];           // posts on the page, oldest last
+let shown = [];           // posts on the page, in page order: oldest first on New, oldest last elsewhere
+let earlierSlot = null;   // New reads oldest first, so its Earlier sits above the posts
 let more = false;
 let peopleSort = localStorage.getItem("sort") || "recent";
 let onlyPosts = localStorage.getItem("only") === "posts";
@@ -109,15 +110,31 @@ function postNode(item) {
     item.quote && nested("quote", item.quote));
 }
 
-function addPosts(posts) {
-  let previous = shown.at(-1);
+function postNodes(posts, previous) {
+  const nodes = [];
   for (const item of posts) {
-    if (!previous || dayKey(previous.at) !== dayKey(item.at)) feed.append(el("div", { class: "day mono" }, dayName(item.at)));
-    feed.append(postNode(item));
-    shown.push(item);
+    if (!previous || dayKey(previous.at) !== dayKey(item.at)) nodes.push(el("div", { class: "day mono" }, dayName(item.at)));
+    nodes.push(postNode(item));
     previous = item;
   }
+  return nodes;
 }
+
+function addPosts(posts) {
+  feed.append(...postNodes(posts, shown.at(-1)));
+  shown.push(...posts);
+}
+
+/* Older posts above the ones on screen, for New. Both are oldest first. */
+function addPostsAbove(posts) {
+  if (!posts.length) return;
+  const first = shown[0], next = earlierSlot.nextElementSibling;
+  if (first && dayKey(posts.at(-1).at) === dayKey(first.at) && next?.classList.contains("day")) next.remove();
+  earlierSlot.after(...postNodes(posts));
+  shown.unshift(...posts);
+}
+
+const oldestShown = () => (earlierSlot ? shown[0] : shown.at(-1));
 
 /* satellites */
 function avatar(person) {
@@ -162,6 +179,7 @@ function reset() {
   edge.replaceChildren();
   shown = [];
   more = false;
+  earlierSlot = null;
 }
 
 function filterTabs() {
@@ -186,7 +204,7 @@ function earlierButton() {
 async function loadEarlier(event) {
   const button = event.currentTarget;
   button.disabled = true;
-  const last = shown.at(-1);
+  const last = oldestShown();
   const params = new URLSearchParams();
   if (view.id) params.set("creator", view.id);
   params.set("before", last ? `${last.at}:${last.id}` : NEWEST);
@@ -195,9 +213,14 @@ async function loadEarlier(event) {
       if (view.name === "new" && last) return savedEarlier(last);
       throw failure;
     });
-    addPosts(page.posts);
     more = page.more;
-    finish();
+    if (earlierSlot) {
+      addPostsAbove(page.posts.reverse());
+      earlierSlot.replaceChildren(earlierButton() || "");
+    } else {
+      addPosts(page.posts);
+      finish();
+    }
   } catch {
     button.disabled = false;
   }
@@ -309,8 +332,10 @@ async function showNew() {
     hero.replaceChildren(el("span", { class: "count none" }, "Clear sky"), el("span", { class: "sub" }, "Nothing new"));
   }
   if (state.creators.length) feed.append(filterTabs());
-  addPosts(page.posts);
-  showEdge(count ? "That's everything." : null, earlierButton());
+  earlierSlot = el("div", { class: "earlier" }, earlierButton());
+  feed.append(earlierSlot);
+  addPosts(page.posts.reverse()); // oldest first, so a thread reads in the order it was written
+  showEdge(count ? "That's everything." : null);
   checked = Math.max(checked, ...shown.map((item) => item.fetched_at));
 }
 

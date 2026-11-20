@@ -36,6 +36,9 @@ is out of files and commit messages. Notes about one particular install go somew
   works, so keep the "Try their @handle" fallback.
 - Logging the burner out in the browser its cookies came from kills them in `accounts.db`.
 - No engagement counts, no infinite scroll. Older posts need a tap on Earlier.
+- New reads oldest first, so someone's self-replies read as the thread grew. All and person
+  pages are newest first. The API stays newest first everywhere; `app.js` flips New, and New's
+  Earlier sits above the posts and adds older ones there.
 - New is only what's unchecked. All and person pages are history, seen or not, and reading
   them doesn't record a check. The All/Posts filter's first button is "Everything" so it
   doesn't read as the All page.

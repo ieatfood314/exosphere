@@ -121,6 +121,7 @@ button { cursor: pointer; }
 .plain:hover { color: var(--ink); }
 .plain.warn { color: var(--dawn); }
 #hero .plain { margin: 4px 0 0 -18px; }
+.earlier .plain { margin: 14px 0 0 -18px; }
 
 /* held or right-clicked names */
 [data-person] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
