@@ -56,7 +56,8 @@ button { cursor: pointer; }
 /* Earth itself: tap it for the whole orbit at once */
 #earth { position: absolute; z-index: 1; top: 0; left: 0; width: 100%; height: var(--limb-y); border-radius: 0 0 50% 50% / 0 0 40px 40px; }
 #earth:focus-visible { outline-offset: -2px; }
-.charted :is(#orbit, #hero, #feed, #edge, #fine, #altitude) { display: none !important; }
+.charted :is(#hero, #feed, #edge, #fine, #altitude) { display: none !important; }
+.charted #orbit { visibility: hidden; } /* still laid out: the arc and the limb are measured from it */
 #chart { position: relative; width: var(--col); margin: calc(var(--limb-y) + 56px) auto 0; padding-bottom: 20vh; }
 #chart > p { margin: 0 0 22px; color: var(--dim); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 26px 10px; }

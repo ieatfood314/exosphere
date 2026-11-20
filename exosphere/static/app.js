@@ -124,7 +124,8 @@ const shortLinks = (text) => text.replace(/https?:\/\/(www\.)?([^\s/]+)\S*/g, "$
 function briefNode(item) {
   const body = item.repost || item;
   const label = item.repost ? `Reposted ${item.repost.author.name}`
-    : item.reply_to ? `Reply to @${item.reply_to.handle}`
+    : item.reply_to ? (item.reply_to.handle?.toLowerCase() === item.creator.handle.toLowerCase() ? "Thread"
+      : item.reply_to.handle ? `Reply to @${item.reply_to.handle}` : "Reply")
     : item.quote ? `Quoting ${item.quote.author.name}` : null;
   const gist = body.text || item.quote?.text || "";
   const first = body.media?.[0] || item.quote?.media?.[0];
@@ -228,6 +229,19 @@ function setChart(open) {
   onScroll();
 }
 
+/* Leaving the chart takes the place of its step in history, so Back skips past it.
+   location.replace leaves the step alone when the page is the same, so it's done by hand. */
+function go(target) {
+  if (chart.hidden) {
+    location.hash = target;
+    return;
+  }
+  const from = location.hash;
+  history.replaceState(null, "", target);
+  setChart(false);
+  if (location.hash !== from) route(); // replaceState fires no hashchange
+}
+
 earth.addEventListener("click", () => {
   if (chart.hidden) {
     history.pushState({ chart: true }, "");
@@ -323,7 +337,7 @@ async function unfollow(id) {
   await api(`/api/creators/${id}`, { method: "DELETE" });
   state.creators = state.creators.filter((creator) => creator.id !== id);
   await refreshState();
-  if (view.id === id) location.hash = "#/";
+  if (view.id === id) go("#/");
   else await route();
 }
 
@@ -681,12 +695,13 @@ document.addEventListener("contextmenu", (event) => {
   }
 });
 document.addEventListener("click", (event) => {
+  if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
   const who = event.target.closest("[data-person]");
-  const target = who ? `#/p/${who.dataset.person}` : event.target.closest("#chart a")?.getAttribute("href");
+  const link = !chart.hidden && event.target.closest('a[href^="#"]'); // the tabs too, while the chart is up
+  const target = who ? `#/p/${who.dataset.person}` : link?.getAttribute("href");
   if (!target) return;
   event.preventDefault();
-  if (chart.hidden) location.hash = target;
-  else location.replace(target); // in place of the chart's step, so Back skips past it
+  go(target);
 });
 menu.addEventListener("click", (event) => {
   if (event.target === menu) menu.close();
