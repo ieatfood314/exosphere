@@ -135,9 +135,11 @@ button { cursor: pointer; }
 .gist { grid-column: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .gist.quiet { color: var(--dim); }
 .peek .kind { grid-column: 1; margin: 8px 0 0; color: var(--faint); }
-.briefs .filter + .brief { border-top: 1px solid var(--rule); margin-top: 12px; }
+.briefs .brief:first-of-type { border-top: 1px solid var(--rule); margin-top: 12px; }
+.briefs .earlier:empty { display: none; }
 .thumb { grid-column: 2; grid-row: 2 / span 2; align-self: start; width: 64px; height: 64px; object-fit: cover; background: #06090f; pointer-events: none; }
 .peek:hover .gist:not(.quiet) { color: #fff; }
+.brief.read:not(.open) :is(.who, .gist) { color: var(--dim); }
 .brief.open .gist, .brief.open .thumb, .brief.open .kind { display: none; }
 .brief.open .peek { padding-bottom: 4px; }
 .brief.open .peek .when, .brief.open .peek .label { color: var(--ink); }
@@ -150,6 +152,7 @@ button { cursor: pointer; }
 .sorts [aria-pressed="true"] { color: var(--ink); }
 .sorts.filter { margin-bottom: 0; }
 .sorts.filter button { padding: 12px 0; }
+.sorts .mark-read { margin-left: auto; }
 .person { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 13px 0; border-bottom: 1px solid var(--rule); line-height: 1.25; }
 .person small { display: block; color: var(--dim); font: 400 10.5px/1.7 Martian, monospace; }
 .person .sat { pointer-events: none; }

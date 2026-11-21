@@ -25,11 +25,13 @@ is out of files and commit messages. Notes about one particular install go somew
   Firefox for Android shows its own menu on any link or image, so keep `href` off them.
 - "New" is by `fetched_at`, not post time, because polling lags. A creator's first fetch is
   `backfill`, and only what they posted since the last check counts as new, at most 24 hours.
-- A check is recorded when the page is hidden or closed after showing the feed, not on load,
-  so the feed holds still while it's read. It's written to `localStorage` first and cleared
-  once sent, so a check made offline reaches the server later. Unread posts move to Earlier at that point. Back
-  within 5 minutes the page stays as it was, or 30 if scrolled down mid-read; after that it
-  reloads to what's new.
+- On the private site, a check is recorded when the page is hidden or closed after showing the
+  feed, not on load, so the feed holds still while it's read. It's written to `localStorage` first
+  and cleared once sent, so a check made offline reaches the server later. Unread posts move to
+  Earlier at that point. Back within 5 minutes the page stays as it was, or 30 if scrolled down
+  mid-read; after that it reloads to what's new. On the mirror, opening a post immediately saves
+  its id in `localStorage` (`read`), New filters those ids in the browser, and Mark all read saves
+  the current New ids. The old `seen` timestamp stays as a floor so upgrading brings nothing back.
 - Everything from X reaches the DOM as text nodes. Never use `innerHTML` on post data.
 - Keep polling slow. One burner, so X's limits and bans are the main risk; the cycle is 30
   minutes. New X accounts may need a phone number before name search
@@ -39,9 +41,9 @@ is out of files and commit messages. Notes about one particular install go somew
 - New reads oldest first, so someone's self-replies read as the thread grew. All and person
   pages are newest first. The API stays newest first everywhere; `app.js` flips New, and New's
   Earlier sits above the posts and adds older ones there.
-- New is only what's unchecked. All and person pages are history, seen or not, and reading
-  them doesn't record a check. The All/Posts filter's first button is "Everything" so it
-  doesn't read as the All page.
+- New is only what's unchecked. All and person pages are history, seen or not. Reading them on
+  the private site doesn't record a check; opening a post anywhere on the mirror saves its read id.
+  The All/Posts filter's first button is "Everything" so it doesn't read as the All page.
 - The Posts filter is `OWN_POSTS` in `db.py`: posts, quotes and self-replies (threads), no
   replies to others and no reposts. It reads the stored JSON, so old rows need no migration.
   `only=posts` must go on `/api/state` as well as `/api/feed`, or the orbit glows for posts
@@ -55,8 +57,8 @@ A read-only copy of the feed on Lakebed, for anyone. It must never be able to hu
 - `mirror/server/index.ts` re-implements `/api/state` and `/api/feed` in TypeScript from that
   snapshot. Change the feed rules in `db.py` (new, `OWN_POSTS`, paging) and change them there too.
 - `app.js` runs as is, wrapped by `mirror/publish.py`. `MIRROR` (`data-mirror` on `<html>`) hides
-  following, and sends the browser's read position as `?seen=` instead of posting it. A first visit
-  sees the last day.
+  following and keeps individual read ids in the browser instead of posting a check. The legacy
+  `?seen=` timestamp is still the floor, and a first visit sees the last day.
 - Lakebed's limits shape it: 1 MiB stored (the snapshot is held to 640 KB, each creator keeps
   their newest 10), 64 KiB per field (it's stored in 60,000-character ASCII chunks), 10,000
   requests and 1,000 writes a day. The pusher skips unchanged snapshots but resends every 3 hours,
@@ -71,8 +73,9 @@ one live color. The limb is painted on a canvas because big blurred box-shadows 
 - The arc under the limb holds only people. New, All and People are small tabs in the top bar.
 - Tapping Earth (`#earth`) lays the whole orbit out as a grid (`#chart`). It's a history step,
   so Back closes it, and picking someone replaces that step instead of adding one.
-- A person's page is a list to choose from: a few lines of each post with a thumbnail, opened
-  in place with a tap. New and All stay full posts, with a rule between them.
+- New and person pages are lists to choose from: a few lines of each post with a thumbnail,
+  opened in place with a tap. New shows the creator on each row. All stays full posts, with a rule
+  between them.
 - The altitude rail is the scrollbar, so the browser's own is hidden. The status sits bottom
   left, opposite the altitude.
 - On the mirror, a line of small print under the feed says what it is, not a status up top.

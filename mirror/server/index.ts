@@ -5,7 +5,6 @@ import { capsule, endpoint, json, number, string, table, text } from "lakebed/se
 
 const DAY = 86400;
 const PAGE = 30;
-const NEW_LIMIT = 500;
 const STALE = 4 * 3600; // the pusher resends at least every 3 hours
 const CHUNK = 60000; // a field holds 64 KiB, and the snapshot is ASCII, so one character is one byte
 const MAX_BODY = 900 * 1024; // the whole deploy stores 1 MiB
@@ -96,7 +95,9 @@ export default capsule({
       const creator = req.query.get("creator"), before = req.query.get("before");
       if (creator === null && before === null) {
         const isNew = newTest(req.query);
-        const posts = mine.filter(isNew).slice(0, NEW_LIMIT);
+        // The snapshot is already capped by bytes. Return every candidate: read ids are filtered
+        // in the browser, so a fixed server limit would hide older unread posts behind read ones.
+        const posts = mine.filter(isNew);
         return json({ posts: posts.map((post) => shown(post, byId)), more: mine.length > 0 });
       }
       let older = (_post: Post) => true;

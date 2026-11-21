@@ -47,8 +47,9 @@ within 512 MB. Whatever you read offline counts as read once you're back.
 
 You can put a read-only copy of your feed on the open web, hosted free on
 [Lakebed](https://lakebed.dev). Nobody there can follow or unfollow, and each visitor's New is
-kept in their own browser. Your server sends it posts and never takes anything back, and the
-mirror never touches X. It holds the newest posts that fit in about 640 KB, about a week's worth.
+kept in their own browser. Opening a post marks just that post as read; **Mark all read** clears
+the current list. Your server sends posts and never takes anything back, and the mirror never
+touches X. It holds the newest posts that fit in about 640 KB, about a week's worth.
 
 ```
 python3 mirror/publish.py

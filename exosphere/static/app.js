@@ -8,8 +8,8 @@ const AWAY_MS = 5 * 60 * 1000;     // a shorter absence is a glance elsewhere, s
 const READING_MS = 30 * 60 * 1000; // scrolled down, you may be off reading a link, so wait longer
 const NEWEST = `${2 ** 40}:9`; // a cursor above every post
 const STATUS = { none: "No X account", blocked: "X blocked us", waiting: "Waiting on X", offline: "Offline", stale: "Not updated lately" };
-// A public, read-only copy of someone's feed. Nobody can follow or unfollow there, and your
-// read position stays in this browser: it goes along with each request instead of to the server.
+// A public, read-only copy of someone's feed. Nobody can follow or unfollow there. Read post
+// ids stay in this browser; the old read timestamp still goes with requests as a migration floor.
 const MIRROR = document.documentElement.hasAttribute("data-mirror");
 
 let state = { creators: [], status: "ok" };
@@ -24,6 +24,19 @@ let seenSent = 0;
 let saved = 0;            // when the last answer was saved, if it came from the app's offline copy
 let holdTimer, holdFrom, held = false;
 let hiddenAt = Date.now();
+let mirrorPage = null, mirrorPageFilter = "";
+
+/* The mirror remembers separate posts, not a feed-wide check. Its old timestamp is still sent
+   as the floor, so upgrading doesn't bring back anything the old version already cleared. */
+function storedMirrorRead() {
+  try {
+    const ids = JSON.parse(localStorage.getItem("read") || "[]");
+    return new Set(Array.isArray(ids) ? ids.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+let mirrorRead = MIRROR ? storedMirrorRead() : new Set();
 
 function el(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
@@ -117,11 +130,11 @@ function postNode(item) {
     postBody(item));
 }
 
-/* A person's page is a list to choose from: a line or three of each post, and a tap opens
+/* New and person pages are lists to choose from: a line or three of each post, and a tap opens
    it in place. Links in the gist are plain text, so a tap anywhere on it opens the post. */
 const shortLinks = (text) => text.replace(/https?:\/\/(www\.)?([^\s/]+)\S*/g, "$2").replace(/\s+/g, " ");
 
-function briefNode(item) {
+function briefNode(item, showCreator = false) {
   const body = item.repost || item;
   const label = item.repost ? `Reposted ${item.repost.author.name}`
     : item.reply_to ? (item.reply_to.handle?.toLowerCase() === item.creator.handle.toLowerCase() ? "Thread"
@@ -132,16 +145,21 @@ function briefNode(item) {
   const picture = first && (first.type === "photo" ? first.url : first.poster);
   const pictures = (body.media?.length || 0) + (item.quote?.media?.length || 0);
   const kind = !first ? null : first.type === "photo" ? (pictures > 1 ? `${pictures} photos` : "Photo") : first.type === "gif" ? "GIF" : "Video";
-  const node = el("article", { class: "post brief" });
+  const node = el("article", { class: `post brief${mirrorRead.has(String(item.id)) ? " read" : ""}`, "data-post": item.id });
   let full = null;
   const peek = el("button", { class: "peek", "aria-expanded": "false", on: { click: () => {
     const open = node.classList.toggle("open");
     peek.setAttribute("aria-expanded", String(open));
-    if (open && !full) node.append(full = el("div", { class: "full" }, postBody(item, false),
-      el("a", { class: "plain away", href: item.url, target: "_blank", rel: "noopener noreferrer" }, "Open on X")));
+    if (open) {
+      markMirrorRead(item);
+      node.classList.toggle("read", MIRROR && mirrorRead.has(String(item.id)));
+      if (!full) node.append(full = el("div", { class: "full" }, postBody(item, false),
+        el("a", { class: "plain away", href: item.url, target: "_blank", rel: "noopener noreferrer" }, "Open on X")));
+    }
     if (!open && node.getBoundingClientRect().top < 0) node.scrollIntoView({ block: "start" });
   } } },
     el("span", { class: "head" },
+      showCreator && el("span", { class: "who" }, item.creator.name),
       label && el("span", { class: "label" }, label),
       el("span", { class: "when", title: new Date(item.at * 1000).toLocaleString() }, ago(item.at))),
     el("span", { class: "gist" + (body.text ? "" : " quiet") }, shortLinks(gist) || kind || "Post"),
@@ -152,10 +170,10 @@ function briefNode(item) {
 }
 
 function postNodes(posts, previous) {
-  const nodes = [], brief = view.name === "person"; // a person's page is a list; each row has its date
+  const nodes = [], brief = view.name === "person" || view.name === "new";
   for (const item of posts) {
     if (!brief && (!previous || dayKey(previous.at) !== dayKey(item.at))) nodes.push(el("div", { class: "day mono" }, dayName(item.at)));
-    nodes.push(brief ? briefNode(item) : postNode(item));
+    nodes.push(brief ? briefNode(item, view.name === "new") : postNode(item));
     previous = item;
   }
   return nodes;
@@ -265,7 +283,7 @@ function bendOrbit() {
 /* views */
 function reset() {
   feed.replaceChildren();
-  feed.classList.toggle("briefs", view.name === "person");
+  feed.classList.toggle("briefs", view.name === "person" || view.name === "new");
   edge.replaceChildren();
   shown = [];
   more = false;
@@ -280,6 +298,7 @@ function filterTabs() {
       await refreshState();
       route();
     } } }, label));
+  if (MIRROR && view.name === "new") tabs.push(el("button", { class: "mark-read", on: { click: markAllMirrorRead } }, "Mark all read"));
   return el("div", { class: "sorts filter" }, tabs);
 }
 
@@ -382,9 +401,9 @@ function openMenu(id, x, y) {
   menu.style.top = `${Math.max(16, Math.min(y, innerHeight - menu.offsetHeight - 16))}px`;
 }
 
-/* Leaving is what counts as having checked, so the feed holds still while you read it.
+/* On the private site, leaving counts as having checked, so the feed holds still while you read.
    It's written down first: the page may be closing, or offline, and the server only ever
-   moves forward, so sending it again later is harmless. */
+   moves forward, so sending it again later is harmless. The mirror marks separate posts instead. */
 const unsentCheck = () => Number(localStorage.getItem("seen")) || 0;
 
 async function sendSeen(options) {
@@ -399,7 +418,7 @@ async function sendSeen(options) {
 }
 
 function sendChecked() {
-  if (checked <= seenSent) return;
+  if (MIRROR || checked <= seenSent) return;
   seenSent = checked;
   localStorage.setItem("seen", Math.max(checked, unsentCheck()));
   sendSeen({ keepalive: true });
@@ -408,12 +427,40 @@ function sendChecked() {
 /* Quick, because an unreachable server would otherwise hold up everything behind this. */
 const catchUp = () => sendSeen({ signal: AbortSignal.timeout(2000) });
 
-async function showNew() {
-  const page = await api(filtered("/api/feed"));
-  if (saved) page.posts = page.posts.filter((item) => item.fetched_at > unsentCheck()); // the copy can't know you read these
-  reset();
-  more = page.more;
-  const count = page.posts.length;
+function saveMirrorRead() {
+  // Another tab may have read something since this one loaded. Merge before replacing the list.
+  mirrorRead = new Set([...storedMirrorRead(), ...mirrorRead]);
+  if (mirrorRead.size > 1000 && mirrorPage && mirrorPageFilter === "all") {
+    // Everything is the complete New list, so its ids must never be evicted. Only old history
+    // ids are disposable. With Posts, or an older tab mid-switch, wait rather than guess.
+    const active = new Set(mirrorPage.posts.map((item) => String(item.id)));
+    for (const id of mirrorRead) {
+      if (mirrorRead.size <= 1000) break;
+      if (!active.has(id)) mirrorRead.delete(id);
+    }
+  }
+  localStorage.setItem("read", JSON.stringify([...mirrorRead]));
+}
+
+function compactMirrorFloor() {
+  const posts = mirrorPage?.posts || [];
+  // Posts alone can't clear replies and reposts, and a filter switch must not mix two lists.
+  if (mirrorPageFilter !== "all" || !posts.length || posts.some((item) => !mirrorRead.has(String(item.id)))) return;
+  localStorage.setItem("seen", Math.max(unsentCheck(), ...posts.map((item) => item.fetched_at)));
+}
+
+function applyMirrorRead() {
+  const counts = new Map(state.creators.map((person) => [person.id, 0]));
+  for (const item of mirrorPage?.posts || []) {
+    if (!mirrorRead.has(String(item.id))) counts.set(item.creator.id, (counts.get(item.creator.id) || 0) + 1);
+  }
+  for (const person of state.creators) person.new = counts.get(person.id) || 0;
+  for (const node of feed.querySelectorAll(".brief")) node.classList.toggle("read", mirrorRead.has(node.dataset.post));
+  drawOrbit();
+  updateMirrorHero();
+}
+
+function newHero(count) {
   if (!state.creators.length && !MIRROR) {
     hero.replaceChildren(el("a", { class: "count none", href: "#/add" }, "Add someone"));
   } else if (count) {
@@ -421,12 +468,54 @@ async function showNew() {
   } else {
     hero.replaceChildren(el("span", { class: "count none" }, "Clear sky"), el("span", { class: "sub" }, "Nothing new"));
   }
+}
+
+function updateMirrorHero() {
+  if (view.name !== "new") return;
+  const candidates = new Set((mirrorPage?.posts || []).map((item) => String(item.id)));
+  newHero(shown.filter((item) => candidates.has(String(item.id)) && !mirrorRead.has(String(item.id))).length);
+}
+
+function markMirrorRead(item) {
+  const id = String(item.id);
+  if (!MIRROR || mirrorRead.has(id)) return;
+  mirrorRead.add(id);
+  saveMirrorRead();
+  compactMirrorFloor();
+  applyMirrorRead();
+}
+
+function markAllMirrorRead() {
+  for (const item of mirrorPage?.posts || []) mirrorRead.add(String(item.id));
+  saveMirrorRead();
+  compactMirrorFloor();
+  applyMirrorRead();
+}
+
+async function mirrorNewPage(refresh = false) {
+  const filter = onlyPosts ? "posts" : "all";
+  if (refresh || !mirrorPage || mirrorPageFilter !== filter) {
+    mirrorPage = await api(filtered("/api/feed"));
+    mirrorPageFilter = filter;
+  }
+  return mirrorPage;
+}
+
+async function showNew() {
+  const answer = MIRROR ? await mirrorNewPage() : await api(filtered("/api/feed"));
+  const page = { ...answer, posts: [...answer.posts] };
+  if (MIRROR) page.posts = page.posts.filter((item) => !mirrorRead.has(String(item.id)));
+  else if (saved) page.posts = page.posts.filter((item) => item.fetched_at > unsentCheck()); // the copy can't know you read these
+  reset();
+  more = page.more;
+  const count = page.posts.length;
+  newHero(count);
   if (state.creators.length) feed.append(filterTabs());
   earlierSlot = el("div", { class: "earlier" }, earlierButton());
   feed.append(earlierSlot);
   addPosts(page.posts.reverse()); // oldest first, so a thread reads in the order it was written
   showEdge(count ? "That's everything." : null);
-  checked = Math.max(checked, ...shown.map((item) => item.fetched_at));
+  if (!MIRROR) checked = Math.max(checked, ...shown.map((item) => item.fetched_at));
 }
 
 /* Everyone, seen or not. Reading here is not checking: only New moves the read position. */
@@ -522,7 +611,12 @@ function showStatus() {
 async function refreshState() {
   try {
     state = await api(filtered("/api/state"));
-    if (saved && unsentCheck()) for (const creator of state.creators) creator.new = 0;
+    if (MIRROR) {
+      await mirrorNewPage(true);
+      applyMirrorRead();
+    } else if (saved && unsentCheck()) {
+      for (const creator of state.creators) creator.new = 0;
+    }
   } catch {
     saved = 0;
     state = { ...state, status: "offline" };
@@ -697,7 +791,7 @@ document.addEventListener("contextmenu", (event) => {
 document.addEventListener("click", (event) => {
   if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
   const who = event.target.closest("[data-person]");
-  const link = !chart.hidden && event.target.closest('a[href^="#"]'); // the tabs too, while the chart is up
+  const link = chart.hidden ? null : event.target.closest('a[href^="#"]'); // the tabs too, while the chart is up
   const target = who ? `#/p/${who.dataset.person}` : link?.getAttribute("href");
   if (!target) return;
   event.preventDefault();
@@ -721,6 +815,12 @@ document.addEventListener("visibilitychange", async () => {
 addEventListener("online", async () => {
   await catchUp();
   await refreshState();
+});
+
+addEventListener("storage", (event) => {
+  if (!MIRROR || event.key !== "read") return;
+  mirrorRead = storedMirrorRead();
+  applyMirrorRead(); // counts and row shading catch up, but the open feed doesn't jump
 });
 
 $("fine").hidden = !MIRROR;
