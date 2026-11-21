@@ -296,7 +296,7 @@ function filterTabs() {
       onlyPosts = value;
       localStorage.setItem("only", value ? "posts" : "all");
       await refreshState();
-      route();
+      route(true);
     } } }, label));
   if (MIRROR && view.name === "new") tabs.push(el("button", { class: "mark-read", on: { click: markAllMirrorRead } }, "Mark all read"));
   return el("div", { class: "sorts filter" }, tabs);
@@ -501,8 +501,8 @@ async function mirrorNewPage(refresh = false) {
   return mirrorPage;
 }
 
-async function showNew() {
-  const answer = MIRROR ? await mirrorNewPage() : await api(filtered("/api/feed"));
+async function showNew(refreshed = false) {
+  const answer = MIRROR ? await mirrorNewPage(!refreshed) : await api(filtered("/api/feed"));
   const page = { ...answer, posts: [...answer.posts] };
   if (MIRROR) page.posts = page.posts.filter((item) => !mirrorRead.has(String(item.id)));
   else if (saved) page.posts = page.posts.filter((item) => item.fetched_at > unsentCheck()); // the copy can't know you read these
@@ -625,7 +625,7 @@ async function refreshState() {
   drawOrbit();
 }
 
-async function route() {
+async function route(refreshed = false) {
   const path = location.hash.replace(/^#\/?/, "");
   const [section, id] = path.split("/");
   view = section === "p" ? { name: "person", id } : { name: section || "new" };
@@ -639,7 +639,7 @@ async function route() {
     else if (view.name === "all") await showAll();
     else if (view.name === "people") showPeople();
     else if (view.name === "add") showAdd();
-    else await showNew();
+    else await showNew(refreshed === true); // hashchange passes an event, not this flag
     showStatus();
   } catch {
     $("status").textContent = STATUS.offline;
@@ -808,7 +808,7 @@ document.addEventListener("visibilitychange", async () => {
     const stale = Date.now() - hiddenAt > (scrollY < 120 ? AWAY_MS : READING_MS);
     await catchUp();
     await refreshState();
-    if (view.name === "new" && stale) route();
+    if (view.name === "new" && stale) route(true);
   }
 });
 
@@ -828,4 +828,4 @@ drawStars();
 drawPlanet();
 await catchUp();
 await refreshState();
-route();
+route(true);
